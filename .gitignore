@@ -1,0 +1,13 @@
+# Go
+argo-values
+*.test
+*.out
+
+# JetBrains IDE
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db

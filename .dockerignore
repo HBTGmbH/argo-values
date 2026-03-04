@@ -1,0 +1,20 @@
+# Ignore files that are not needed in the Docker build context
+.git
+.gitignore
+Dockerfile
+.dockerignore
+README.md
+LICENSE
+# Ignore local development files
+*.swp
+*.swo
+# Ignore build artifacts
+argo-values
+# Ignore IDE files
+.idea/
+.vscode/
+# Ignore binary files that might be in the directory
+bin/
+# Ignore any temporary files
+tmp/
+*.tmp
