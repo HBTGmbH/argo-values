@@ -23,10 +23,14 @@ var (
 )
 
 func init() {
-	InitCmd.Flags().StringArrayVar(&valueConfigs, "value-maps", []string{}, "ConfigMaps containing values to merge into the application files")
-	InitCmd.Flags().StringArrayVar(&envConfigs, "env-maps", []string{}, "ConfigMaps containing environment variables to inject into application files")
-	InitCmd.Flags().StringArrayVar(&valueSecrets, "value-secrets", []string{}, "Secrets containing values to merge into the application files")
-	InitCmd.Flags().StringArrayVar(&envSecrets, "env-secrets", []string{}, "Secrets containing environment variables to inject into application files")
+	InitCmd.Flags().StringArrayVar(&valueConfigs, "value-maps",
+		[]string{}, "ConfigMaps containing values to merge into the application files")
+	InitCmd.Flags().StringArrayVar(&envConfigs, "env-maps",
+		[]string{}, "ConfigMaps containing environment variables to inject into application files")
+	InitCmd.Flags().StringArrayVar(&valueSecrets, "value-secrets",
+		[]string{}, "Secrets containing values to merge into the application files")
+	InitCmd.Flags().StringArrayVar(&envSecrets, "env-secrets",
+		[]string{}, "Secrets containing environment variables to inject into application files")
 }
 
 var InitCmd = &cobra.Command{

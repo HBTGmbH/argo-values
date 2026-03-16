@@ -25,16 +25,23 @@ var RootCmd = &cobra.Command{
 
 func init() {
 	// Add global flags
-	RootCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", env.GetString("LOG_LEVEL", "debug"), "Log level (debug, info, warn, error, fatal, panic)")
-	RootCmd.PersistentFlags().StringVar(&config.LogFormat, "log-format", env.GetString("LOG_FORMAT", "json"), "Log format (text, json)")
-	RootCmd.PersistentFlags().StringVar(&config.LogOutput, "log-output", env.GetString("LOG_OUTPUT", "stdout"), "Log output (stderr, stdout)")
+	RootCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l",
+		env.GetString("LOG_LEVEL", "debug"), "Log level (debug, info, warn, error, fatal, panic)")
+	RootCmd.PersistentFlags().StringVar(&config.LogFormat, "log-format",
+		env.GetString("LOG_FORMAT", "json"), "Log format (text, json)")
+	RootCmd.PersistentFlags().StringVar(&config.LogOutput, "log-output",
+		env.GetString("LOG_OUTPUT", "stdout"), "Log output (stderr, stdout)")
 
-	RootCmd.PersistentFlags().StringVarP(&config.KubeConfigPath, "kubeconfig", "k", "", "Path to kubeconfig file")
+	RootCmd.PersistentFlags().StringVarP(&config.KubeConfigPath, "kubeconfig", "k",
+		"", "Path to kubeconfig file")
 
-	RootCmd.PersistentFlags().StringVarP(&config.ValuesFileName, "file-values", "v", "app-values.yaml", "Path to values file")
-	RootCmd.PersistentFlags().StringVarP(&config.TargetDirectory, "file-target", "t", ".", "Path to application files")
+	RootCmd.PersistentFlags().StringVarP(&config.ValuesFileName, "file-values", "v",
+		"app-values.yaml", "Path to values file")
+	RootCmd.PersistentFlags().StringVarP(&config.TargetDirectory, "file-target", "t",
+		".", "Path to application files")
 
-	RootCmd.PersistentFlags().BoolVarP(&config.DryRun, "dry-run", "d", false, "dry-run enabled (true, false)")
+	RootCmd.PersistentFlags().BoolVarP(&config.DryRun, "dry-run", "d",
+		false, "dry-run enabled (true, false)")
 
 	// Add subcommands
 	RootCmd.AddCommand(commands.DiscoverCommand)

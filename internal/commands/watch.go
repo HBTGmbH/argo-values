@@ -24,8 +24,10 @@ var (
 )
 
 func init() {
-	WatchCmd.Flags().DurationVarP(&debounceDuration, "event-interval", "i", 2*time.Second, "Debounce interval for resource change events")
-	WatchCmd.Flags().StringArrayVar(&namespaces, "namespaces", config.GetArrayFromEnv("ARGOCD_VALUES_NAMESPACES", []string{"argocd", "default"}), "Namespaces to watch for resource changes")
+	WatchCmd.Flags().DurationVarP(&debounceDuration, "refresh-interval", "i",
+		config.GetSecondsFromEnv("ARGOCD_VALUES_REFRESH_SECONDS", 2*time.Second), "Debounce interval for resource change events")
+	WatchCmd.Flags().StringArrayVar(&namespaces, "namespaces",
+		config.GetArrayFromEnv("ARGOCD_VALUES_NAMESPACES", []string{"argocd", "default"}), "Namespaces to watch for resource changes")
 }
 
 var WatchCmd = &cobra.Command{
@@ -36,7 +38,7 @@ Argo CD applications when their dependent resources (ConfigMaps, Secrets) change
 
 This command establishes watches on ConfigMaps and Secrets in the specified namespaces
 and triggers application refreshes when any watched resource changes. The refresh
-debounce multiple rapid changes according to the event-interval flag.
+debounce multiple rapid changes according to the refresh-interval flag.
 
 The command maintains a mapping of which applications depend on which resources and
 only refreshes applications that are affected by the specific resource changes.

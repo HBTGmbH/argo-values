@@ -16,8 +16,10 @@ var (
 )
 
 func init() {
-	GenerateCmd.Flags().StringVar(&appName, "app-name", env.GetString("ARGOCD_APP_NAME", ""), "Name of the Argo CD application")
-	GenerateCmd.Flags().StringVar(&appNamespace, "app-namespace", env.GetString("ARGOCD_APP_NAMESPACE", ""), "Namespace of the Argo CD application")
+	GenerateCmd.Flags().StringVar(&appName, "app-name",
+		env.GetString("ARGOCD_APP_NAME", ""), "Name of the Argo CD application")
+	GenerateCmd.Flags().StringVar(&appNamespace, "app-namespace",
+		env.GetString("ARGOCD_APP_NAMESPACE", "argocd"), "Namespace of the Argo CD application")
 }
 
 var GenerateCmd = &cobra.Command{
