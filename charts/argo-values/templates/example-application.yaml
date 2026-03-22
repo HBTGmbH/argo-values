@@ -1,0 +1,24 @@
+{{ if .Values.withExampleApplication }}
+# noinspection KubernetesUnknownResourcesInspection
+apiVersion: argoproj.io/v1alpha1
+# noinspection KubernetesUnknownResourcesInspection
+kind: Application
+metadata:
+  name: nginx-example
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: HEAD
+    path: helm-guestbook
+    plugin:
+      env:
+        - name: env-configs
+          value: test-env
+        - name: value-configs
+          value: test-values
+  destination:
+    server: https://kubernetes.default.svc  # Targets the same cluster as Argo CD
+    namespace: default
+{{- end }}

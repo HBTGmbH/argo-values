@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmp-plugin-config
+data:
+  plugin.yaml: |
+    # noinspection KubernetesUnknownResourcesInspection
+    apiVersion: argoproj.io/v1alpha1
+    # noinspection KubernetesUnknownResourcesInspection
+    kind: ConfigManagementPlugin
+    metadata:
+      name: argo-values
+    spec:
+      parameters:
+        static:
+          - name: valuesConfigs
+            title: Value ConfigMap Names
+            tooltip: List of ConfigMap names with additional values.yaml files for the Helm chart of the application
+            required: false
+            itemType: "string"
+            collectionType: "array"
+          - name: valueSecrets
+            title: Value Secret Names
+            tooltip: List of Secret names with additional values.yaml files for the Helm chart of the application
+            required: false
+            itemType: "string"
+            collectionType: "array"
+          - name: envConfigs
+            title: Environment ConfigMap Names
+            tooltip: List of ConfigMap names with values which an be uses as ENV variables in the Helm chart before rendering the application
+            required: false
+            itemType: "string"
+            collectionType: "array"
+          - name: envSecrets
+            title: Environment Secret Names
+            tooltip: List of Secret names with values which an be uses as ENV variables in the Helm chart before rendering the application
+            required: false
+            itemType: "string"
+            collectionType: "array"
+      version: v1.0
+      init:
+        command: [argo-values]
+        args: [init]
+      generate:
+        command: [argo-values]
+        args: [generate]
+      discover:
+        find:
+          command: [argo-values]
+          args: [discover]

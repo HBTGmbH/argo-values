@@ -1,0 +1,49 @@
+argo-cd:
+  controller:
+    extraContainers:
+      - name: argo-values
+        image: ghcr.io/hbtgmbh/argo-values:latest
+        command: [argo-values]
+        args: [watch]
+
+  repoServer:
+    initContainers:
+      - name: copy-cmp-server
+        image: quay.io/argoproj/argocd:v3.3.2
+        command: [cp, /usr/local/bin/argocd-cmp-server, /custom-tools/]
+        volumeMounts:
+          - name: custom-tools
+            mountPath: /custom-tools
+
+    extraContainers:
+      - name: argo-values
+        image: ghcr.io/hbtgmbh/argo-values:latest
+        command: [/custom-tools/argocd-cmp-server]
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+        volumeMounts:
+          - name: var-files
+            mountPath: /var/run/argocd
+          - name: plugins
+            mountPath: /home/argocd/cmp-server/plugins
+          - name: cmp-tmp
+            mountPath: /tmp
+          - name: cmp-plugin-config
+            mountPath: /home/argocd/cmp-server/config/plugin.yaml
+            subPath: plugin.yaml
+          - name: custom-tools
+            mountPath: /custom-tools
+    volumes:
+      - name: cmp-plugin-config
+        configMap:
+          name: argocd-cmp-plugin-config
+      - name: cmp-tmp
+        emptyDir: {}
+      - name: custom-tools
+        emptyDir: {}
+
+withArgoCD: true
+
+withExampleApplication: false

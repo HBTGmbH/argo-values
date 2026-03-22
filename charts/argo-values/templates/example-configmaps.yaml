@@ -1,0 +1,21 @@
+{{ if .Values.withExampleApplication }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-env
+  namespace: default
+data:
+  values.yaml: |
+    cpu: "123m"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-values
+  namespace: default
+data:
+  values.yaml: |
+    resources:
+      requests:
+        cpu: "${CPU}"
+  {{- end }}

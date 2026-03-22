@@ -1,0 +1,20 @@
+apiVersion: v2
+name: argo-values
+description: CMP for ArgoCD to inject values from external k8s resources
+type: application
+version: 0.0.1
+appVersion: "0.1.0"
+keywords:
+  - argocd
+  - kubernetes
+home: https://github.com/hbt/argo-values
+sources:
+  - https://github.com/hbt/argo-values
+maintainers:
+  - name: HBT Hamburger Berater Team GmbH
+    url: https://www.hbt.de/
+dependencies:
+  - name: argo-cd
+    repository: https://argoproj.github.io/argo-helm
+    version: 9.4.15
+    condition: withArgoCD

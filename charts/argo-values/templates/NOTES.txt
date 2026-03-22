@@ -1,0 +1,22 @@
+{{ if .Values.withArgoCD }}
+ArgoCD with argo-values CMP plugin has been deployed!
+{{- else }}
+ArgoCD CMP plugin has been configured and is ready for use with ArgoCD repo-server!
+{{- end }}
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+{{ if not .Values.withArgoCD }}
+To add the argo-values plugin to ArgoCD repo-server, just put the following snippet to
+the ArgoCD Helm chart:
+
+repoServer:
+  extraContainers: {{ (index .Values "argo-cd").repoServer.extraContainers | toYaml | nindent 4 }}
+  initContainers: {{ (index .Values "argo-cd").repoServer.initContainers | toYaml | nindent 4 }}
+
+To refresh an application every time a related ConfigMap or Secret is updated, add the following snippet
+to the ArgoCD Helm chart to run argo-values as sidecar for the application controller:
+
+controller:
+  extraContainers: {{ (index .Values "argo-cd").controller.extraContainers | toYaml | nindent 4 }}
+{{- end }}

@@ -1,5 +1,5 @@
 # Go
-argo-values
+"argo-values"
 *.test
 *.out
 
@@ -11,3 +11,7 @@ argo-values
 
 # Windows
 Thumbs.db
+
+# Ignore temporary helm files
+charts
+Chart.lock
