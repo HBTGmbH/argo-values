@@ -1,0 +1,5 @@
+valueFromApp: app2
+
+resources:
+  requests:
+    cpu: "321m"

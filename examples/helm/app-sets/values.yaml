@@ -1,0 +1,30 @@
+withApplicationSet: false
+
+apps:
+  set1:
+    app1:
+      source:
+        repoURL: https://github.com/argoproj/argocd-example-apps.git
+        targetRevision: HEAD
+        path: helm-guestbook
+      valueConfigs:
+        - argocd/test
+
+    app2:
+      source:
+        repoURL: https://github.com/argoproj/argocd-example-apps.git
+        targetRevision: HEAD
+        path: helm-guestbook
+
+  set2:
+    app3:
+      source:
+        repoURL: https://github.com/argoproj/argocd-example-apps.git
+        targetRevision: HEAD
+        path: helm-guestbook
+
+    app4:
+      source:
+        repoURL: https://github.com/argoproj/argocd-example-apps.git
+        targetRevision: HEAD
+        path: helm-guestbook

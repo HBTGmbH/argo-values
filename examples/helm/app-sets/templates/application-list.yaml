@@ -1,0 +1,54 @@
+#file: noinspection KubernetesUnknownResourcesInspection
+{{- if not .Values.withApplicationSet }}
+{{ $valuesFolder := .Values.valuesFolder | default "values" }}
+{{- range $appSet, $apps := .Values.apps }}
+{{- range $appName, $appValues := $apps }}
+{{- $merged := dict }}
+{{- range $path, $_ := $.Files.Glob (printf "%s/*.yaml" $valuesFolder) }}
+{{- $content := $.Files.Get $path | fromYaml }}
+{{- $merged = merge $merged $content }}
+{{- end }}
+{{- range $path, $_ := $.Files.Glob (printf "%s/%s/*.yaml" $valuesFolder $appSet) }}
+{{- $content := $.Files.Get $path | fromYaml }}
+{{- $merged = merge $merged $content }}
+{{- end }}
+{{- range $path, $_ := $.Files.Glob (printf "%s/%s/%s/*.yaml" $valuesFolder $appSet $appName) }}
+{{- $content := $.Files.Get $path | fromYaml }}
+{{- $merged = (merge $merged $content) }}
+{{- end }}
+{{ $helmValues := include "flattenMap" (list "" $merged) | trim | fromYaml }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ $appName }}
+spec:
+  project: {{ $appValues.project | default "default" }}
+  source:
+    repoURL: {{ $appValues.source.repoURL }}
+    targetRevision: {{ $appValues.source.targetRevision | default "HEAD" }}
+    path: {{ $appValues.source.path }}
+    plugin:
+      {{- if $helmValues }}
+      parameters:
+        - name: helmValues
+          map:
+          {{- range $key, $value := $helmValues }}
+            {{ $key }}: {{ $value | quote }}
+          {{- end }}
+      {{- end }}
+      env:
+        - name: env-configs
+          value: {{ join "," ($appValues.envConfigs | default (list)) | quote }}
+        - name: value-configs
+          value: {{ join "," ($appValues.valueConfigs | default (list)) | quote }}
+        - name: env-secrets
+          value: {{ join "," ($appValues.envSecrets | default (list)) | quote }}
+        - name: value-secrets
+          value: {{ join "," ($appValues.valueSecrets | default (list)) | quote }}
+  destination:
+    server: https://kubernetes.default.svc  # Targets the same cluster as Argo CD
+    namespace: default
+---
+{{- end }}
+{{- end }}
+{{- end }}

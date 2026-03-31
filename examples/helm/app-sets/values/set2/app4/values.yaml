@@ -1,0 +1,12 @@
+value: app4
+
+
+
+test:
+  - a: a
+    b:
+      d:
+        - a
+      c: c
+  - b
+  - c

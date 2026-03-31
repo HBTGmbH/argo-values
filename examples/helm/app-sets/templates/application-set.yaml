@@ -1,0 +1,81 @@
+#file: noinspection KubernetesUnknownResourcesInspection
+{{- if .Values.withApplicationSet }}
+{{- range $appSet, $apps := .Values.apps }}
+{{ $valuesFolder := $.Values.valuesFolder | default "values" }}
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: {{ $appSet }}
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          {{- range $appName, $appValues := $apps }}
+          - name: {{ $appName }}
+            project: {{ $appValues.project | default "default" }}
+            source:
+              repoURL: {{ $appValues.source.repoURL }}
+              targetRevision: {{ $appValues.source.targetRevision | default "HEAD" }}
+              path: {{ $appValues.source.path }}
+            plugin:
+                {{- $merged := dict }}
+                {{- range $path, $_ := $.Files.Glob (printf "%s/*.yaml" $valuesFolder) }}
+                {{- $content := $.Files.Get $path | fromYaml }}
+                {{- $merged = merge $merged $content }}
+                {{- end }}
+                {{- range $path, $_ := $.Files.Glob (printf "%s/%s/*.yaml" $valuesFolder $appSet) }}
+                {{- $content := $.Files.Get $path | fromYaml }}
+                {{- $merged = merge $merged $content }}
+                {{- end }}
+                {{- range $path, $_ := $.Files.Glob (printf "%s/%s/%s/*.yaml" $valuesFolder $appSet $appName) }}
+                {{- $content := $.Files.Get $path | fromYaml }}
+                {{- $merged = (merge $merged $content) }}
+                {{- end }}
+              helmValues: {{ include "flattenMap" (list "" $merged) | trim | nindent 16 }}
+              envConfigs: {{ join "," ($appValues.envConfigs | default (list)) | quote }}
+              envSecrets: {{ join "," ($appValues.envSecrets | default (list)) | quote }}
+              valueConfigs: {{ join "," ($appValues.valueConfigs | default (list)) | quote }}
+              valueSecrets: {{ join "," ($appValues.valueSecrets | default (list)) | quote }}
+          {{- end }}
+  template:
+    metadata:
+      name: '{{ "{{" }} .name {{ "}}" }}'
+    spec:
+      project: '{{ "{{" }} .project {{ "}}" }}'
+      source:
+        repoURL: '{{ "{{" }} .source.repoURL {{ "}}" }}'
+        targetRevision: '{{ "{{" }} .source.targetRevision {{ "}}" }}'
+        path: '{{ "{{" }} .source.path {{ "}}" }}'
+        plugin:
+          env:
+            - name: env-configs
+              value: '{{ "{{" }} .plugin.envConfigs {{ "}}" }}'
+            - name: env-secrets
+              value: '{{ "{{" }} .plugin.envSecrets {{ "}}" }}'
+            - name: value-configs
+              value: '{{ "{{" }} .plugin.valueConfigs {{ "}}" }}'
+            - name: value-secrets
+              value: '{{ "{{" }} .plugin.valueSecrets {{ "}}" }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: default
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          enabled: true
+  templatePatch: |
+    spec:
+      source:
+        plugin:
+          parameters:
+            - name: helmValues
+              map:
+                {{ "{{" }}- range $key, $value := .plugin.helmValues {{ "}}" }}
+                {{ "{{" }} $key {{ "}}" }}: "{{ "{{" }} $value {{ "}}" }}"
+                {{ "{{" }}- end {{ "}}" }}
+---
+{{- end }}
+{{- end }}
