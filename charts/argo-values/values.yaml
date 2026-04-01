@@ -46,4 +46,4 @@ argo-cd:
 
 withArgoCD: true
 
-withExampleApplication: false
+withHelmExample: false

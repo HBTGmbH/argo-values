@@ -1,4 +1,4 @@
-{{ if .Values.withExampleApplication }}
+{{ if .Values.withHelmExample }}
 # noinspection KubernetesUnknownResourcesInspection
 apiVersion: argoproj.io/v1alpha1
 # noinspection KubernetesUnknownResourcesInspection

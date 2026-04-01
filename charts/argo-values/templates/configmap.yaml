@@ -13,6 +13,9 @@ data:
     spec:
       parameters:
         static:
+          - name: helmValues
+            title: Helm Values
+            collectionType: map
           - name: valuesConfigs
             title: Value ConfigMap Names
             tooltip: List of ConfigMap names with additional values.yaml files for the Helm chart of the application
