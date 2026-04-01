@@ -31,38 +31,26 @@ func Parse(raw string) (PluginParameters, error) {
 	return p, nil
 }
 
-// GetArray finds an array parameter by name
-func (p PluginParameters) GetArray(name string, def []string) []string {
-	for _, param := range p {
-		if param.Name == name {
-			return param.Array
-		}
-	}
-	return def
+func sanitizeEnvName(name string) string {
+	return strings.ReplaceAll(strings.ToUpper(name), "-", "_")
 }
 
-// GetMap finds a map parameter by name
-func (p PluginParameters) GetMap(name string, def map[string]string) map[string]string {
-	for _, param := range p {
-		if param.Name == name {
-			return param.Map
+func HasEnvParameter(name string) bool {
+	name = sanitizeEnvName(name) + "="
+	for _, envVariable := range os.Environ() {
+		if sanitizeEnvName(envVariable) == name {
+			return true
 		}
 	}
-	return def
+	return false
 }
 
-// GetString finds a string parameter by name
-func (p PluginParameters) GetString(name string, def string) string {
-	for _, param := range p {
-		if param.Name == name {
-			return param.String
-		}
-	}
-	return def
+func HasEnvParameters() bool {
+	return HasEnvParameter("ARGOCD_ENV_VALUE_CONFIGS") || HasEnvParameter("ARGOCD_ENV_ENV_CONFIGS") || HasEnvParameter("ARGOCD_ENV_VALUE_SECRETS") || HasEnvParameter("ARGOCD_ENV_ENV_SECRETS")
 }
 
 func GetStringFromEnv(name string, def string) string {
-	name = strings.ReplaceAll(strings.ToUpper(name), "-", "_") // Convert input key to uppercase for comparison
+	name = sanitizeEnvName(name) // Convert input key to uppercase for comparison
 
 	for _, varFromEnv := range os.Environ() {
 		pair := strings.SplitN(varFromEnv, "=", 2)
@@ -95,6 +83,46 @@ func GetArrayFromEnv(name string, def []string) []string {
 	return arrayFiltered
 }
 
+// HasArray finds an array parameter by name
+func (p PluginParameters) HasArray(name string) bool {
+	for _, param := range p {
+		if param.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// GetArray finds an array parameter by name
+func (p PluginParameters) GetArray(name string, def []string) []string {
+	for _, param := range p {
+		if param.Name == name {
+			return param.Array
+		}
+	}
+	return def
+}
+
+// GetMap finds a map parameter by name
+func (p PluginParameters) GetMap(name string, def map[string]string) map[string]string {
+	for _, param := range p {
+		if param.Name == name {
+			return param.Map
+		}
+	}
+	return def
+}
+
+// GetString finds a string parameter by name
+func (p PluginParameters) GetString(name string, def string) string {
+	for _, param := range p {
+		if param.Name == name {
+			return param.String
+		}
+	}
+	return def
+}
+
 type AppParameters struct {
 	Values struct {
 		ConfigMaps []string
@@ -103,6 +131,9 @@ type AppParameters struct {
 	Env struct {
 		ConfigMaps []string
 		Secrets    []string
+	}
+	Helm struct {
+		Values map[string]string
 	}
 }
 
@@ -126,9 +157,11 @@ func ParseAppParameters() (AppParameters, error) {
 	envSecretsFromEnv := GetArrayFromEnv("ARGOCD_ENV_ENV_SECRETS", []string{})
 	appParameters.Env.Secrets = appParametersFromEnv.GetArray("envSecrets", envSecretsFromEnv)
 
+	appParameters.Helm.Values = appParametersFromEnv.GetMap("helmValues", map[string]string{})
+
 	return appParameters, nil
 }
 
 func (p AppParameters) IsEmpty() bool {
-	return (len(p.Values.ConfigMaps) + len(p.Values.Secrets) + len(p.Env.ConfigMaps) + len(p.Env.Secrets)) == 0
+	return (len(p.Values.ConfigMaps) + len(p.Values.Secrets) + len(p.Env.ConfigMaps) + len(p.Env.Secrets) + len(p.Helm.Values)) == 0
 }

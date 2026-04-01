@@ -19,6 +19,11 @@ This is typically used by Argo CD to determine if the argo-values plugin should 
 used for a particular application during the discovery phase.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		if config.HasEnvParameters() {
+			logger.Debugf("Supported application")
+			os.Exit(0)
+		}
+
 		appParameters, err := config.ParseAppParameters()
 		if err != nil {
 			logger.Fatalf("Failed to parse parameters: %v", err)
@@ -30,6 +35,6 @@ used for a particular application during the discovery phase.`,
 		}
 
 		logger.Debugf("Unsupported application")
-		os.Exit(1)
+		os.Exit(2)
 	},
 }
