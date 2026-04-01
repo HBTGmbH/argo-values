@@ -123,6 +123,9 @@ func generateValues(client *kubernetes.Client, appParameters *config.AppParamete
 		return nil, nil, fmt.Errorf("failed to init values: %v", err)
 	}
 
+	helmValues := config.UnflattenYAML(appParameters.Helm.Values, false)
+	mergedValues = config.MergeYAML(mergedValues, helmValues)
+
 	mergedEnv, err := mergeData(configMaps, appParameters.Env.ConfigMaps, secrets, appParameters.Env.Secrets)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to init env: %v", err)

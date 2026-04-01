@@ -21,6 +21,10 @@ func SanitizeKey(key string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(strings.ToUpper(key), ".", "_"), "-", "_")
 }
 
+func UnSanitizeKey(key string) string {
+	return strings.ReplaceAll(strings.ToLower(key), "_", ".")
+}
+
 func FlattenYAML(data map[string]interface{}, prefix string, result map[string]string) {
 	for key, value := range data {
 		newKey := prefix + SanitizeKey(key)
@@ -34,6 +38,45 @@ func FlattenYAML(data map[string]interface{}, prefix string, result map[string]s
 			result[newKey] = fmt.Sprintf("%v", value)
 		}
 	}
+}
+
+// UnflattenYAML takes a map of flattened key-value pairs (e.g., "RESOURCES_REQUESTS_CPU" -> "123m")
+// and reconstructs a nested YAML-like map. Keys are split on "_" and lowercased to build the hierarchy.
+func UnflattenYAML(flat map[string]string, sanitized bool) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	for flatKey, value := range flat {
+		if sanitized {
+			flatKey = UnSanitizeKey(flatKey)
+		}
+		parts := strings.Split(flatKey, ".")
+		current := result
+
+		for i, part := range parts {
+			if i == len(parts)-1 {
+				// Last part: set the value
+				current[part] = value
+			} else {
+				// Intermediate part: ensure a nested map exists
+				if existing, ok := current[part]; ok {
+					if nestedMap, ok := existing.(map[string]interface{}); ok {
+						current = nestedMap
+					} else {
+						// Conflict: a leaf value already exists at this key; overwrite with a map
+						newMap := make(map[string]interface{})
+						current[part] = newMap
+						current = newMap
+					}
+				} else {
+					newMap := make(map[string]interface{})
+					current[part] = newMap
+					current = newMap
+				}
+			}
+		}
+	}
+
+	return result
 }
 
 func MergeYAML(a, b map[string]interface{}) map[string]interface{} {

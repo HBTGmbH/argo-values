@@ -193,6 +193,224 @@ func TestMergeYAML(t *testing.T) {
 	}
 }
 
+func TestUnflattenSanitizedYAML(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]string
+		expected map[string]interface{}
+	}{
+		{
+			name:     "single flat key",
+			input:    map[string]string{"REPLICAS": "3"},
+			expected: map[string]interface{}{"replicas": "3"},
+		},
+		{
+			name:     "nested key",
+			input:    map[string]string{"RESOURCES_REQUESTS_CPU": "123m"},
+			expected: map[string]interface{}{"resources": map[string]interface{}{"requests": map[string]interface{}{"cpu": "123m"}}},
+		},
+		{
+			name: "multiple nested keys",
+			input: map[string]string{
+				"RESOURCES_REQUESTS_CPU":    "123m",
+				"RESOURCES_REQUESTS_MEMORY": "256Mi",
+			},
+			expected: map[string]interface{}{
+				"resources": map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu":    "123m",
+						"memory": "256Mi",
+					},
+				},
+			},
+		},
+		{
+			name: "mixed depth",
+			input: map[string]string{
+				"REPLICAS":                  "3",
+				"RESOURCES_REQUESTS_CPU":    "123m",
+				"RESOURCES_REQUESTS_MEMORY": "256Mi",
+			},
+			expected: map[string]interface{}{
+				"replicas": "3",
+				"resources": map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu":    "123m",
+						"memory": "256Mi",
+					},
+				},
+			},
+		},
+		{
+			name:     "empty map",
+			input:    map[string]string{},
+			expected: map[string]interface{}{},
+		},
+		{
+			name: "complex nested",
+			input: map[string]string{
+				"DATABASE_HOST":                 "localhost",
+				"DATABASE_PORT":                 "5432",
+				"DATABASE_CREDENTIALS_USERNAME": "admin",
+				"DATABASE_CREDENTIALS_PASSWORD": "secret",
+			},
+			expected: map[string]interface{}{
+				"database": map[string]interface{}{
+					"host": "localhost",
+					"port": "5432",
+					"credentials": map[string]interface{}{
+						"username": "admin",
+						"password": "secret",
+					},
+				},
+			},
+		},
+		{
+			name: "conflict leaf overwritten by map",
+			input: map[string]string{
+				"A":   "leaf",
+				"A_B": "nested",
+			},
+			expected: map[string]interface{}{
+				"a": map[string]interface{}{
+					"b": "nested",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := UnflattenYAML(tt.input, true)
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("UnflattenYAML() length = %d, want %d", len(result), len(tt.expected))
+				return
+			}
+
+			compareMaps(t, result, tt.expected)
+		})
+	}
+}
+
+func TestUnflattenUnSanitizedYAML(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]string
+		expected map[string]interface{}
+	}{
+		{
+			name:     "single flat key",
+			input:    map[string]string{"replicas": "3"},
+			expected: map[string]interface{}{"replicas": "3"},
+		},
+		{
+			name:     "nested key",
+			input:    map[string]string{"resources.requests.cpu": "123m"},
+			expected: map[string]interface{}{"resources": map[string]interface{}{"requests": map[string]interface{}{"cpu": "123m"}}},
+		},
+		{
+			name: "multiple nested keys",
+			input: map[string]string{
+				"resources.requests.cpu":    "123m",
+				"resources.requests.memory": "256Mi",
+			},
+			expected: map[string]interface{}{
+				"resources": map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu":    "123m",
+						"memory": "256Mi",
+					},
+				},
+			},
+		},
+		{
+			name: "mixed depth",
+			input: map[string]string{
+				"replicas":                  "3",
+				"resources.requests.cpu":    "123m",
+				"resources.requests.memory": "256Mi",
+			},
+			expected: map[string]interface{}{
+				"replicas": "3",
+				"resources": map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu":    "123m",
+						"memory": "256Mi",
+					},
+				},
+			},
+		},
+		{
+			name:     "empty map",
+			input:    map[string]string{},
+			expected: map[string]interface{}{},
+		},
+		{
+			name: "complex nested",
+			input: map[string]string{
+				"database.host":                 "localhost",
+				"database.port":                 "5432",
+				"database.credentials.username": "admin",
+				"database.credentials.password": "secret",
+			},
+			expected: map[string]interface{}{
+				"database": map[string]interface{}{
+					"host": "localhost",
+					"port": "5432",
+					"credentials": map[string]interface{}{
+						"username": "admin",
+						"password": "secret",
+					},
+				},
+			},
+		},
+		{
+			name: "conflict leaf overwritten by map",
+			input: map[string]string{
+				"a":   "leaf",
+				"a.b": "nested",
+			},
+			expected: map[string]interface{}{
+				"a": map[string]interface{}{
+					"b": "nested",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := UnflattenYAML(tt.input, false)
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("UnflattenYAML() length = %d, want %d", len(result), len(tt.expected))
+				return
+			}
+
+			compareMaps(t, result, tt.expected)
+		})
+	}
+}
+
+func TestFlattenUnflattenRoundTrip(t *testing.T) {
+	input := map[string]interface{}{
+		"resources": map[string]interface{}{
+			"requests": map[string]interface{}{
+				"cpu":    "123m",
+				"memory": "256Mi",
+			},
+		},
+		"replicas": "3",
+	}
+
+	flat := make(map[string]string)
+	FlattenYAML(input, "", flat)
+	result := UnflattenYAML(flat, true)
+
+	compareMaps(t, result, input)
+}
+
 // Helper function to compare maps recursively
 func compareMaps(t *testing.T, result, expected map[string]interface{}) {
 	if len(result) != len(expected) {
