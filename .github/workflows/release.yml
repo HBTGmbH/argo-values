@@ -6,16 +6,21 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
+    name: Build and push image
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: read # check out the repository
+      packages: write # push the container image to GitHub Container Registry
 
     steps:
       - name: Checkout repository

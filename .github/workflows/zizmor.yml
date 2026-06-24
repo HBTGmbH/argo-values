@@ -4,21 +4,26 @@ on:
   push:
     branches: ["main"]
     paths:
-      - ".github/workflows/**"
+      - ".github/**"
   pull_request:
     branches: ["**"]
     paths:
-      - ".github/workflows/**"
+      - ".github/**"
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   zizmor:
+    name: Run zizmor
     runs-on: ubuntu-latest
     permissions:
-      security-events: write
-      contents: read
-      actions: read
+      security-events: write # upload SARIF results to GitHub code scanning
+      contents: read # check out the repository
+      actions: read # read workflow definitions for the audit
 
     steps:
       - name: Checkout repository
@@ -28,3 +33,6 @@ jobs:
 
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa # v0.5.7
+        with:
+          persona: pedantic
+          version: v1.26.1
