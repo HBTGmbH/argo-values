@@ -5,6 +5,7 @@ import (
 	"argo-values/internal/logger"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"k8s.io/utils/env"
@@ -37,7 +38,7 @@ set the application name and namespace instead of command line flags.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO other parameters, kustomize
-		helmArgs := []string{"template", appName, config.TargetDirectory, "--namespace", appNamespace, "--include-crds", "-f", config.ValuesFileName}
+		helmArgs := helmTemplateArgs(appName, appNamespace, config.TargetDirectory, config.ValuesFileName)
 		helmCmd := exec.Command("helm", helmArgs...)
 		helmCmd.Stdout = os.Stdout
 		helmCmd.Stderr = os.Stderr
@@ -46,4 +47,19 @@ set the application name and namespace instead of command line flags.`,
 			logger.Fatal(err)
 		}
 	},
+}
+
+// helmTemplateArgs builds the arguments for "helm template". The values file path
+// must follow the same rule as init: filepath.Join(TargetDirectory, ValuesFileName).
+func helmTemplateArgs(appName, appNamespace, targetDirectory, valuesFile string) []string {
+	return []string{
+		"template",
+		appName,
+		targetDirectory,
+		"--namespace",
+		appNamespace,
+		"--include-crds",
+		"-f",
+		filepath.Join(targetDirectory, valuesFile),
+	}
 }
