@@ -39,7 +39,6 @@ type ResourceWatcher struct {
 	wg               sync.WaitGroup
 	ctx              context.Context
 	cancelFunc       context.CancelFunc
-	errorCh          chan error
 	eventHandler     EventHandler
 	debounceInterval time.Duration
 
@@ -64,13 +63,16 @@ func NewResourceWatcher(client *Client, debounceInterval time.Duration, namespac
 		stopCh:           make(chan struct{}),
 		ctx:              ctx,
 		cancelFunc:       cancel,
-		errorCh:          make(chan error, 1),
 		pendingEvents:    make(map[string]Event),
 		eventHandler:     eventHandler,
 		debounceInterval: debounceInterval,
 	}, nil
 }
 
+// Start starts watching all configured resources. Errors for a single resource
+// are logged and retried with a backoff instead of stopping the watcher, so a
+// failure to watch one resource (for example missing RBAC) does not prevent the
+// others from working. Start only returns once Stop is called.
 func (w *ResourceWatcher) Start() error {
 	logger.Debug("Starting resource watcher...")
 
@@ -89,15 +91,9 @@ func (w *ResourceWatcher) Start() error {
 	// Start the debounced flush loop
 	w.wg.Go(w.flushLoop)
 
-	select {
-	case err := <-w.errorCh:
-		w.Stop()
-		w.wg.Wait()
-		return err
-	case <-w.stopCh:
-		w.wg.Wait()
-		return nil
-	}
+	<-w.stopCh
+	w.wg.Wait()
+	return nil
 }
 
 func (w *ResourceWatcher) Stop() {
@@ -149,8 +145,11 @@ func (w *ResourceWatcher) watchResource(resource schema.GroupVersionResource, na
 		if resource.Resource == "applications" {
 			list, err := w.client.Resource(resource).Namespace(namespace).List(w.ctx, listOptions)
 			if err != nil {
-				w.handleError(fmt.Errorf("failed to list %s in %s: %v", resource.Resource, namespace, err))
-				return
+				logger.Errorf("failed to list %s in %s: %v (will retry)", resource.Resource, namespace, err)
+				if !w.backoff() {
+					return
+				}
+				continue
 			}
 			w.enqueueList(resource, namespace, list)
 			listOptions.ResourceVersion = list.GetResourceVersion()
@@ -158,8 +157,11 @@ func (w *ResourceWatcher) watchResource(resource schema.GroupVersionResource, na
 
 		wi, err := w.client.Resource(resource).Namespace(namespace).Watch(w.ctx, listOptions)
 		if err != nil {
-			w.handleError(fmt.Errorf("failed to watch %s in %s: %v", resource.Resource, namespace, err))
-			return
+			logger.Errorf("failed to watch %s in %s: %v (will retry)", resource.Resource, namespace, err)
+			if !w.backoff() {
+				return
+			}
+			continue
 		}
 
 		channelClosed := false
@@ -212,11 +214,14 @@ func (w *ResourceWatcher) enqueueList(resource schema.GroupVersionResource, name
 	}
 }
 
-func (w *ResourceWatcher) handleError(err error) {
+// backoff waits for watcherReconnectDelay before retrying a failed list or
+// watch. It returns false if the watcher was stopped during the wait.
+func (w *ResourceWatcher) backoff() bool {
 	select {
-	case w.errorCh <- err:
-	default:
-		logger.Debugf("Error channel already has an error, ignoring new error: %v", err)
+	case <-w.stopCh:
+		return false
+	case <-time.After(watcherReconnectDelay):
+		return true
 	}
 }
 

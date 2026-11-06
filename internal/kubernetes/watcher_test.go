@@ -1,14 +1,18 @@
 package kubernetes
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
@@ -124,6 +128,76 @@ func TestResourceWatcherSeedsExistingApplications(t *testing.T) {
 	env, ok := envs[0].(map[string]interface{})
 	if !ok || env["value"] != "cm" {
 		t.Errorf("expected env value %q, got %v", "cm", envs[0])
+	}
+
+	watcher.Stop()
+
+	select {
+	case err := <-startDone:
+		if err != nil {
+			t.Fatalf("Start returned error after Stop: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start did not return within 2s after Stop")
+	}
+}
+
+type failingWatchClient struct{ dynamic.Interface }
+
+func (c failingWatchClient) Resource(gvr schema.GroupVersionResource) dynamic.NamespaceableResourceInterface {
+	return failingWatchResource{c.Interface.Resource(gvr)}
+}
+
+type failingWatchResource struct {
+	dynamic.NamespaceableResourceInterface
+}
+
+func (r failingWatchResource) Namespace(ns string) dynamic.ResourceInterface {
+	return failingWatchNamespaced{r.NamespaceableResourceInterface.Namespace(ns)}
+}
+
+type failingWatchNamespaced struct{ dynamic.ResourceInterface }
+
+func (r failingWatchNamespaced) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+	return nil, fmt.Errorf("simulated watch failure")
+}
+
+func TestResourceWatcherSurvivesWatchErrors(t *testing.T) {
+	gvrToListKind := map[schema.GroupVersionResource]string{
+		{Group: "argoproj.io", Version: "v1alpha1", Resource: "applications"}: "ApplicationList",
+		{Group: "", Version: "v1", Resource: "configmaps"}:                    "ConfigMapList",
+		{Group: "", Version: "v1", Resource: "secrets"}:                       "SecretList",
+	}
+
+	appObj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "Application",
+			"metadata": map[string]interface{}{
+				"name":      "app1",
+				"namespace": "argocd",
+			},
+		},
+	}
+
+	fakeClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), gvrToListKind, appObj)
+	client := &Client{client: failingWatchClient{fakeClient}}
+
+	watcher, err := NewResourceWatcher(client, 10*time.Millisecond, []string{"argocd"}, func(map[string]Event) {})
+	if err != nil {
+		t.Fatalf("NewResourceWatcher returned error: %v", err)
+	}
+
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- watcher.Start()
+	}()
+
+	select {
+	case err := <-startDone:
+		watcher.Stop()
+		t.Fatalf("Start returned early despite watch errors: %v", err)
+	case <-time.After(100 * time.Millisecond):
 	}
 
 	watcher.Stop()
