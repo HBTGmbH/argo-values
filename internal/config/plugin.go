@@ -35,16 +35,28 @@ func sanitizeEnvName(name string) string {
 	return strings.ReplaceAll(strings.ToUpper(name), "-", "_")
 }
 
+// HasEnvParameter reports whether an environment variable with the given name
+// exists, regardless of its value. An empty value still counts as present.
+// Matching is case-insensitive and treats '-' and '_' as equivalent.
 func HasEnvParameter(name string) bool {
-	name = sanitizeEnvName(name) + "="
+	name = sanitizeEnvName(name)
 	for _, envVariable := range os.Environ() {
-		if sanitizeEnvName(envVariable) == name {
+		key, _, ok := strings.Cut(envVariable, "=")
+		if !ok {
+			continue
+		}
+		if sanitizeEnvName(key) == name {
 			return true
 		}
 	}
 	return false
 }
 
+// HasEnvParameters reports whether any of the supported ArgoCD environment
+// parameter variables is present: ARGOCD_ENV_VALUE_CONFIGS,
+// ARGOCD_ENV_ENV_CONFIGS, ARGOCD_ENV_VALUE_SECRETS or ARGOCD_ENV_ENV_SECRETS.
+// Matching is case-insensitive, treats '-' and '_' as equivalent, and counts an
+// empty value as present.
 func HasEnvParameters() bool {
 	return HasEnvParameter("ARGOCD_ENV_VALUE_CONFIGS") || HasEnvParameter("ARGOCD_ENV_ENV_CONFIGS") || HasEnvParameter("ARGOCD_ENV_VALUE_SECRETS") || HasEnvParameter("ARGOCD_ENV_ENV_SECRETS")
 }
