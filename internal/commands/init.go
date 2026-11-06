@@ -86,7 +86,10 @@ overwriting earlier ones for the same keys.`,
 			}
 		}
 
-		helmIgnore, _ := helm.ReadHelmIgnore(config.TargetDirectory)
+		helmIgnore, err := helm.ReadHelmIgnore(config.TargetDirectory)
+		if err != nil {
+			logger.Fatalf("Failed to read .helmignore: %v", err)
+		}
 		err = prepareApplicationFiles(config.TargetDirectory, config.TargetDirectory, helmIgnore, appEnv, config.DryRun)
 		if err != nil {
 			logger.Fatalf("Failed to inject ENV values: %v", err)

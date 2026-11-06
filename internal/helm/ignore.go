@@ -10,13 +10,17 @@ import (
 
 type IgnoreFile []string
 
-// ReadHelmIgnore reads .helmignore file and returns patterns to ignore
+// ReadHelmIgnore reads the .helmignore file in directory and returns its
+// patterns. If the file does not exist, it returns an empty, non-nil
+// *IgnoreFile and no error. Other errors (stat/open/scan) are returned
+// alongside a nil *IgnoreFile.
 func ReadHelmIgnore(directory string) (*IgnoreFile, error) {
 	helmIgnorePath := filepath.Join(directory, ".helmignore")
 
 	// Check if .helmignore exists
 	if _, err := os.Stat(helmIgnorePath); os.IsNotExist(err) {
-		return nil, nil // No .helmignore file
+		empty := IgnoreFile{}
+		return &empty, nil // No .helmignore file: empty, non-nil pattern set
 	}
 
 	file, err := os.Open(helmIgnorePath)
@@ -40,9 +44,11 @@ func ReadHelmIgnore(directory string) (*IgnoreFile, error) {
 	return &patterns, scanner.Err()
 }
 
-// ShouldIgnore checks if a file path should be ignored based on .helmignore patterns
+// ShouldIgnore checks if a file path should be ignored based on the
+// .helmignore patterns. It is nil-safe: a nil receiver or an empty pattern
+// set yields false.
 func (i *IgnoreFile) ShouldIgnore(filePath, baseDirectory string) bool {
-	if len(*i) == 0 {
+	if i == nil || len(*i) == 0 {
 		return false
 	}
 

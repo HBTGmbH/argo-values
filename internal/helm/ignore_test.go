@@ -157,6 +157,43 @@ func TestShouldIgnore(t *testing.T) {
 	}
 }
 
+func TestReadHelmIgnoreMissingFileReturnsNonNil(t *testing.T) {
+	tempDir := t.TempDir()
+
+	result, err := ReadHelmIgnore(tempDir)
+	if err != nil {
+		t.Fatalf("ReadHelmIgnore() error = %v, want nil", err)
+	}
+	if result == nil {
+		t.Fatal("ReadHelmIgnore() = nil, want non-nil empty IgnoreFile")
+	}
+	if len(*result) != 0 {
+		t.Errorf("ReadHelmIgnore() length = %d, want 0", len(*result))
+	}
+}
+
+func TestShouldIgnoreNilReceiver(t *testing.T) {
+	var i *IgnoreFile
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("ShouldIgnore() panicked on nil receiver: %v", r)
+		}
+	}()
+
+	if i.ShouldIgnore("some/file.txt", ".") {
+		t.Error("ShouldIgnore() on nil receiver = true, want false")
+	}
+}
+
+func TestShouldIgnoreEmptyIgnoreFile(t *testing.T) {
+	i := IgnoreFile{}
+
+	if i.ShouldIgnore("some/file.txt", ".") {
+		t.Error("ShouldIgnore() on empty IgnoreFile = true, want false")
+	}
+}
+
 func TestMatchesPattern(t *testing.T) {
 	tests := []struct {
 		name     string
