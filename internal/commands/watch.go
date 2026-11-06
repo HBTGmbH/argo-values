@@ -135,6 +135,11 @@ func updateResources(dryRun bool, refresh refreshApplicationFunc, applicationRes
 func getApplicationResources(obj *unstructured.Unstructured) []string {
 	var resources []string
 
+	defaultNamespace := obj.GetNamespace()
+	if defaultNamespace == "" {
+		defaultNamespace = "default"
+	}
+
 	spec, found, err := unstructured.NestedMap(obj.Object, "spec")
 	if err != nil || !found {
 		return resources
@@ -152,18 +157,18 @@ func getApplicationResources(obj *unstructured.Unstructured) []string {
 
 	envs, found, err := unstructured.NestedSlice(plugin, "env")
 	if err == nil && found && envs != nil {
-		resources = append(resources, getApplicationResourcesFromEnv(envs)...)
+		resources = append(resources, getApplicationResourcesFromEnv(envs, defaultNamespace)...)
 	}
 
 	parameters, found, err := unstructured.NestedSlice(plugin, "parameters")
 	if err == nil && found && parameters != nil {
-		resources = append(resources, getApplicationResourcesFromParameters(parameters)...)
+		resources = append(resources, getApplicationResourcesFromParameters(parameters, defaultNamespace)...)
 	}
 
 	return resources
 }
 
-func getApplicationResourcesFromParameters(parameters []interface{}) []string {
+func getApplicationResourcesFromParameters(parameters []interface{}, defaultNamespace string) []string {
 	var resources []string
 
 	for _, param := range parameters {
@@ -172,14 +177,14 @@ func getApplicationResourcesFromParameters(parameters []interface{}) []string {
 			if kind == "" {
 				continue
 			}
-			resources = append(resources, getKeysFromObjs(kind, utils.NonEmpty(utils.GetArrayFromMap(paramMap, "array")))...)
+			resources = append(resources, getKeysFromObjs(kind, utils.NonEmpty(utils.GetArrayFromMap(paramMap, "array")), defaultNamespace)...)
 		}
 	}
 
 	return resources
 }
 
-func getApplicationResourcesFromEnv(envs []interface{}) []string {
+func getApplicationResourcesFromEnv(envs []interface{}, defaultNamespace string) []string {
 	var resources []string
 
 	for _, env := range envs {
@@ -188,7 +193,7 @@ func getApplicationResourcesFromEnv(envs []interface{}) []string {
 			if kind == "" {
 				continue
 			}
-			resources = append(resources, getKeysFromObjs(kind, utils.NonEmpty(strings.Split(utils.GetStringFromMap(envMap, "value"), ",")))...)
+			resources = append(resources, getKeysFromObjs(kind, utils.NonEmpty(strings.Split(utils.GetStringFromMap(envMap, "value"), ",")), defaultNamespace)...)
 		}
 	}
 
@@ -207,13 +212,18 @@ func getKindFromName(name string) string {
 	return ""
 }
 
-func getKeysFromObjs(kind string, names []string) []string {
-	for i, name := range names {
+func getKeysFromObjs(kind string, names []string, defaultNamespace string) []string {
+	if defaultNamespace == "" {
+		defaultNamespace = "default"
+	}
+
+	keys := make([]string, 0, len(names))
+	for _, name := range names {
 		if strings.Index(name, "/") > 0 {
-			names[i] = fmt.Sprintf("%s/%s", kind, name)
+			keys = append(keys, fmt.Sprintf("%s/%s", kind, name))
 		} else {
-			names[i] = fmt.Sprintf("%s/default/%s", kind, name)
+			keys = append(keys, fmt.Sprintf("%s/%s/%s", kind, defaultNamespace, name))
 		}
 	}
-	return names
+	return keys
 }

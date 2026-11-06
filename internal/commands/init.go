@@ -98,10 +98,12 @@ overwriting earlier ones for the same keys.`,
 }
 
 func generateValues(client *kubernetes.Client, appParameters *config.AppParameters) (map[string]interface{}, map[string]string, error) {
+	defaultNamespace := config.GetStringFromEnv("ARGOCD_APP_NAMESPACE", "default")
+
 	var configMaps = map[string]*v1.ConfigMap{}
 	for _, name := range append(appParameters.Values.ConfigMaps, appParameters.Env.ConfigMaps...) {
 		if _, found := configMaps[name]; !found {
-			configMap, err := client.GetConfigmap(name)
+			configMap, err := client.GetConfigmap(name, defaultNamespace)
 			if err != nil {
 				return nil, nil, fmt.Errorf("unable to get ConfigMap %s: %v", name, err)
 			}
@@ -112,7 +114,7 @@ func generateValues(client *kubernetes.Client, appParameters *config.AppParamete
 	var secrets = map[string]*v1.Secret{}
 	for _, name := range append(appParameters.Values.Secrets, appParameters.Env.Secrets...) {
 		if _, found := secrets[name]; !found {
-			secret, err := client.GetSecret(name)
+			secret, err := client.GetSecret(name, defaultNamespace)
 			if err != nil {
 				return nil, nil, fmt.Errorf("unable to get Secret %s: %v", name, err)
 			}

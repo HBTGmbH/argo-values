@@ -141,6 +141,93 @@ func TestUpdateResourcesDryRunDoesNotRefresh(t *testing.T) {
 	}
 }
 
+func TestGetKeysFromObjsUsesDefaultNamespace(t *testing.T) {
+	got := getKeysFromObjs("configmaps", []string{"cm"}, "argocd")
+	want := []string{"configmaps/argocd/cm"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func TestGetKeysFromObjsKeepsQualifiedNames(t *testing.T) {
+	got := getKeysFromObjs("configmaps", []string{"ns/cm"}, "argocd")
+	want := []string{"configmaps/ns/cm"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func TestGetKeysFromObjsDoesNotMutateInput(t *testing.T) {
+	names := []string{"cm", "ns/cm"}
+	got := getKeysFromObjs("configmaps", names, "argocd")
+	wantInput := []string{"cm", "ns/cm"}
+	if len(names) != len(wantInput) || names[0] != wantInput[0] || names[1] != wantInput[1] {
+		t.Fatalf("expected input to remain %v, got %v", wantInput, names)
+	}
+	want := []string{"configmaps/argocd/cm", "configmaps/ns/cm"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestGetApplicationResourcesUsesApplicationNamespace(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind": "Application",
+			"metadata": map[string]interface{}{
+				"name":      "app",
+				"namespace": "argocd",
+			},
+			"spec": map[string]interface{}{
+				"source": map[string]interface{}{
+					"plugin": map[string]interface{}{
+						"env": []interface{}{
+							map[string]interface{}{"name": "value-configs", "value": "cm"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := getApplicationResources(obj)
+	want := []string{"configmaps/argocd/cm"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func TestGetApplicationResourcesWithoutNamespaceUsesDefault(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind": "Application",
+			"metadata": map[string]interface{}{
+				"name": "app",
+			},
+			"spec": map[string]interface{}{
+				"source": map[string]interface{}{
+					"plugin": map[string]interface{}{
+						"env": []interface{}{
+							map[string]interface{}{"name": "value-configs", "value": "cm"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := getApplicationResources(obj)
+	want := []string{"configmaps/default/cm"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
 func TestUpdateResourcesApplicationEventUpdatesResourceMap(t *testing.T) {
 	applicationResources := map[string][]string{}
 

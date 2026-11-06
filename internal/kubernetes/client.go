@@ -79,22 +79,30 @@ func (k *Client) RefreshApplication(name, namespace string) error {
 	return err
 }
 
-func (k *Client) GetConfigmap(name string) (*v1.ConfigMap, error) {
-	nameParts := strings.Split(name, "/")
-	if len(nameParts) > 1 {
-		logger.Debugf("Get ConfigMap %s from namespace %s", nameParts[1], nameParts[0])
-		return k.clientSet.CoreV1().ConfigMaps(nameParts[0]).Get(context.Background(), nameParts[1], metav1.GetOptions{})
+// parseNamespacedName splits a "namespace/name" reference. Unqualified names
+// (including "/name" and "namespace/") use defaultNamespace, falling back to
+// "default" when it is empty. Only the first "/" separates both parts.
+func parseNamespacedName(name, defaultNamespace string) (namespace, resource string) {
+	if defaultNamespace == "" {
+		defaultNamespace = "default"
 	}
-	logger.Debugf("Get ConfigMap %s from namespace default", name)
-	return k.clientSet.CoreV1().ConfigMaps("default").Get(context.Background(), name, metav1.GetOptions{})
+
+	separator := strings.Index(name, "/")
+	if separator <= 0 || separator == len(name)-1 {
+		return defaultNamespace, name
+	}
+
+	return name[:separator], name[separator+1:]
 }
 
-func (k *Client) GetSecret(name string) (*v1.Secret, error) {
-	nameParts := strings.Split(name, "/")
-	if len(nameParts) > 1 {
-		logger.Debugf("Get Secret %s from namespace %s", nameParts[1], nameParts[0])
-		return k.clientSet.CoreV1().Secrets(nameParts[0]).Get(context.Background(), nameParts[1], metav1.GetOptions{})
-	}
-	logger.Debugf("Get Secret %s from namespace default", name)
-	return k.clientSet.CoreV1().Secrets("default").Get(context.Background(), name, metav1.GetOptions{})
+func (k *Client) GetConfigmap(name, defaultNamespace string) (*v1.ConfigMap, error) {
+	namespace, resource := parseNamespacedName(name, defaultNamespace)
+	logger.Debugf("Get ConfigMap %s from namespace %s", resource, namespace)
+	return k.clientSet.CoreV1().ConfigMaps(namespace).Get(context.Background(), resource, metav1.GetOptions{})
+}
+
+func (k *Client) GetSecret(name, defaultNamespace string) (*v1.Secret, error) {
+	namespace, resource := parseNamespacedName(name, defaultNamespace)
+	logger.Debugf("Get Secret %s from namespace %s", resource, namespace)
+	return k.clientSet.CoreV1().Secrets(namespace).Get(context.Background(), resource, metav1.GetOptions{})
 }
