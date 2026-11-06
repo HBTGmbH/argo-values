@@ -200,7 +200,7 @@ func processFile(baseDirectory string, filePath string, env map[string]string, d
 
 		// Look up the key in the environment map
 		if value, exists := env[key]; exists {
-			logger.Debugf("Replace key %s in %s: %s", key, relPath, value)
+			logger.Debugf("Replaced key %s in %s", key, relPath)
 			return value
 		}
 

@@ -1,11 +1,16 @@
 package commands
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"argo-values/internal/helm"
+	"argo-values/internal/logger"
+
+	"github.com/sirupsen/logrus"
 )
 
 func writeTestFile(t *testing.T, path, content string) {
@@ -128,5 +133,44 @@ func TestProcessFile(t *testing.T) {
 	want := "yes ${UNKNOWN} db.example.com"
 	if got := readTestFile(t, path); got != want {
 		t.Errorf("file content = %q, want %q", got, want)
+	}
+}
+
+func TestProcessFileDoesNotLogSecretValue(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "file.txt")
+	writeTestFile(t, path, "${SECRET}")
+
+	// Redirect logger output and restore the global logger state afterwards.
+	originalOut := logger.Log.Out
+	originalLevel := logger.Log.GetLevel()
+	originalFormatter := logger.Log.Formatter
+	defer func() {
+		logger.Log.SetOutput(originalOut)
+		logger.Log.SetLevel(originalLevel)
+		logger.Log.SetFormatter(originalFormatter)
+	}()
+
+	var buf bytes.Buffer
+	logger.Log.SetOutput(&buf)
+	logger.Log.SetLevel(logrus.DebugLevel)
+	logger.Log.SetFormatter(&logrus.TextFormatter{DisableTimestamp: true})
+
+	const secretValue = "super-secret-value"
+	env := map[string]string{"SECRET": secretValue}
+	if err := processFile(root, path, env, false); err != nil {
+		t.Fatalf("processFile returned error: %v", err)
+	}
+
+	if got := readTestFile(t, path); got != secretValue {
+		t.Errorf("file content = %q, want %q (substitution must still work)", got, secretValue)
+	}
+
+	logOutput := buf.String()
+	if strings.Contains(logOutput, secretValue) {
+		t.Errorf("log output must not contain the secret value %q, got: %s", secretValue, logOutput)
+	}
+	if !strings.Contains(logOutput, "SECRET") {
+		t.Errorf("log output must contain the key %q, got: %s", "SECRET", logOutput)
 	}
 }
