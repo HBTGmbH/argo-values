@@ -56,7 +56,7 @@ without requiring manual intervention or waiting for the next reconciliation cyc
 		// Create and start the watcher
 		watcher, err := kubernetes.NewResourceWatcher(
 			kubeClient, debounceDuration, namespaces,
-			updateResources(config.DryRun, kubeClient, make(map[string][]string)),
+			updateResources(config.DryRun, kubeClient.RefreshApplication, make(map[string][]string)),
 		)
 		if err != nil {
 			log.Fatalf("Failed to create watcher: %v", err)
@@ -81,7 +81,9 @@ without requiring manual intervention or waiting for the next reconciliation cyc
 	},
 }
 
-func updateResources(dryRun bool, kubeClient *kubernetes.Client, applicationResources map[string][]string) kubernetes.EventHandler {
+type refreshApplicationFunc func(name, namespace string) error
+
+func updateResources(dryRun bool, refresh refreshApplicationFunc, applicationResources map[string][]string) kubernetes.EventHandler {
 	return func(events map[string]kubernetes.Event) {
 		logger.Debugf("Found %d changed resources", len(events))
 
@@ -105,7 +107,6 @@ func updateResources(dryRun bool, kubeClient *kubernetes.Client, applicationReso
 				}
 				if !slices.Contains(changedApplications, application) && slices.Contains(key, changedResource) {
 					changedApplications = append(changedApplications, application)
-					break
 				}
 			}
 		}
@@ -122,7 +123,7 @@ func updateResources(dryRun bool, kubeClient *kubernetes.Client, applicationReso
 			logger.Debugf("Refresh application %s in namespace %s", name, namespace)
 
 			if !dryRun {
-				err := kubeClient.RefreshApplication(name, namespace)
+				err := refresh(name, namespace)
 				if err != nil {
 					logger.Errorf("Failed to refresh application %s in namespace %s: %v", name, namespace, err)
 				}
