@@ -16,5 +16,5 @@ maintainers:
 dependencies:
   - name: argo-cd
     repository: https://argoproj.github.io/argo-helm
-    version: 9.4.15
+    version: 9.7.1
     condition: withArgoCD

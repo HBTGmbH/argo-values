@@ -2,17 +2,41 @@
 
 [![License](https://img.shields.io/github/license/HBTGmbH/argo-values)](https://github.com/HBTGmbH/argo-values/blob/main/LICENSE)
 
-Argo Values is a Config Management Plugin (CMP) for Argo CD that enhances Helm-based deployments by integrating values from Kubernetes ConfigMaps and Secrets.
+Argo Values is a Config Management Plugin (CMP) for Argo CD that enhances Helm-based deployments by integrating values 
+from Kubernetes ConfigMaps and Secrets.
 
 ## Features
 
-- **Dynamic Value Injection**: Merge values from ConfigMaps and Secrets into Helm template application files
+- **ConfigMap-driven Values**: Merge values from ConfigMaps (and optionally Secrets) into Helm template application files
 - **Environment Variable Substitution**: Replace variable placeholders in application files with actual values
 - **Automatic Refresh**: Watch for ConfigMap/Secret changes and trigger application refreshes
 - **Helm Integration**: Full compatibility with Helm charts and templating
 - **Selective Processing**: Respect `.helmignore` patterns
 
-## Installation with ArgoCD Helm chart
+## Scope and Positioning
+
+argo-values is built around **non-sensitive configuration** from ConfigMaps. Its primary purpose is to let Helm charts
+consume values from ConfigMaps (and to substitute `${VAR}` placeholders) at render time, without duplicating those values into Git.
+
+This fills a gap in Argo CD: Argo CD does not watch external ConfigMaps and has no native way to use their contents as
+Helm values. The `watch` command closes the refresh gap by triggering a targeted application refresh only for the applications
+that reference a changed ConfigMap.
+
+Using ConfigMaps as a value source at render time is a deliberate trade-off, not an antipattern. Note that the rendered 
+manifests then depend on a second source of truth besides Git, which makes them less reproducible from Git alone and is 
+incompatible with the "Rendered Manifests" pattern. If you need fully reproducible manifests, keep values in Git
+(`valuesObject`, `valueFiles`, multiple sources) instead.
+
+### Secrets
+
+Secrets are supported (`value-secrets` / `env-secrets`), but they are **not the primary use case**. Argo CD explicitly 
+cautions against injecting secrets during manifest generation, because generated manifests (including injected secrets)
+are cached in plaintext in Redis and exposed via the repo-server API. See the [Argo CD Secret Management](https://argo-cd.readthedocs.io/en/stable/operator-manual/secret-management/) documentation.
+
+For sensitive values, prefer destination-cluster solutions such as External Secrets Operator, Vault Secrets Operator, 
+or Sealed Secrets, and reference the resulting Kubernetes Secret from the chart instead of rendering its value.
+
+## Installation with Argo CD Helm chart
 
 ### Configure argo-values CMP
 
@@ -44,9 +68,10 @@ extraObjects:
               args: [discover]
 ```
 
-### Add argo-values to ArgoCD application controller (optional)
+### Add argo-values to Argo CD application controller (optional)
 
-To trigger application refresh automatically every time a ConfigMap or Secret changed, add the following snippet to your `values.yaml`:
+To trigger application refresh automatically every time a ConfigMap or Secret changed, add the following snippet to your
+`values.yaml`:
 ```yaml
 controller:
   extraContainers:
@@ -127,7 +152,8 @@ spec:
           value: default/application-variables # <- list of ConfigMaps or namespace/ConfigMap separated by ","
 ```
 
-Every ConfigMap from `value-configs` or Secret from `value-secrets` will be added directly to the Helm templates of the application:
+Every ConfigMap from `value-configs` or Secret from `value-secrets` will be added directly to the Helm templates of the 
+application:
 
 ```yaml
 apiVersion: v1
@@ -144,7 +170,8 @@ data:
         memory: "100Mi"
 ```
 
-All values from `env-configs` or `value-secrets` are available as environment variables and substituted in the Helm templates of the application:
+All values from `env-configs` or `value-secrets` are available as environment variables and substituted in the Helm 
+templates of the application:
 
 ```yaml
 apiVersion: v1
@@ -156,9 +183,12 @@ data:
   cpu: "123m"
 ```
 
+> **Note:** Use ConfigMaps for non-sensitive configuration. For secrets, see [Scope and Positioning](#scope-and-positioning) 
+> above and prefer a destination-cluster solution such as External Secrets Operator.
+
 ## License
 
-Apache License 2.0 - See [LICENSE](LICENSE) for details.
+MIT License, Copyright © 2026 HBT GmbH. See [LICENSE](LICENSE).
 
 ## Contributing
 

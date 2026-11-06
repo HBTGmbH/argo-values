@@ -18,7 +18,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o argo-values cmd/argo-values/main.go
 # Final stage - create a minimal image
 FROM alpine:latest
 
-ARG HELM_VERSION=3.19.0-r5
+ARG HELM_VERSION=3.19.0-r8
 ARG APP_VERSION=1.0.0
 ARG GO_VERSION=1.26
 
