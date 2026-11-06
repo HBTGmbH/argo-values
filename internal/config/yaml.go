@@ -3,11 +3,30 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// maxArrayIndex bounds array indices reconstructed by UnflattenYAML. Larger
+// indices are treated as literal map keys to avoid allocating huge sparse slices.
+const maxArrayIndex = 10000
+
+var (
+	arraySectionPattern = regexp.MustCompile(`^([^\[\]]+)((?:\[\d+\])+)$`)
+	arrayIndexPattern   = regexp.MustCompile(`\[(\d+)\]`)
+)
+
+// pathStep is a single step in an unflattened path: either a map key or an
+// array index. Exactly one of key/isIndex is meaningful.
+type pathStep struct {
+	key     string
+	index   int
+	isIndex bool
+}
 
 func ParseYAML(key, value string) map[string]interface{} {
 	var result map[string]interface{}
@@ -43,17 +62,25 @@ func FlattenYAML(data map[string]interface{}, prefix string, result map[string]s
 
 // UnflattenYAML takes a map of flattened key-value pairs (e.g., "RESOURCES_REQUESTS_CPU" -> "123m")
 // and reconstructs a nested YAML-like map. If sanitized is true, each key is first passed through
-// UnSanitizeKey (lowercased, "_" replaced by "."); otherwise the key is used as-is. In both cases
-// the resulting key is split on "." to build the hierarchy.
+// UnSanitizeKey (lowercased, "_" replaced by "."); otherwise the key is used as-is. The resulting
+// key is split on "." and each section is parsed into map and array steps.
 //
-// Entries are inserted in a deterministic order: shallower paths first, then lexicographically by
-// transformed key and finally by original key. This makes deeper paths win over conflicting
-// shallower leaf values (e.g. "a.b" overwrites the leaf "a"), independent of map iteration order.
+// Array sections such as "env[0]", "ports[0].name" or "matrix[0][1]" are reconstructed as
+// []interface{} values. Sections that do not match the supported syntax (e.g. "foo[bar]", "foo[0]x"
+// or a leading "[0]") remain literal map keys. Sparse arrays are padded with nil entries, so only
+// "env[1]" yields []interface{}{nil, "B"}. Indices above maxArrayIndex (10000) are treated as
+// literal map keys to protect against memory exhaustion from huge sparse allocations.
+//
+// Entries are inserted in a deterministic order: shallower paths first (depth is the number of
+// parsed steps, including array indices), then lexicographically by transformed key and finally by
+// original key. This makes deeper paths win over conflicting shallower values: a leaf is replaced
+// by a map or list when a deeper path requires it (e.g. "a.b" overwrites the leaf "a", "env[0]"
+// overwrites the leaf "env"), independent of map iteration order.
 func UnflattenYAML(flat map[string]string, sanitized bool) map[string]interface{} {
 	type entry struct {
 		originalKey string
 		key         string
-		depth       int
+		steps       []pathStep
 		value       string
 	}
 
@@ -63,17 +90,18 @@ func UnflattenYAML(flat map[string]string, sanitized bool) map[string]interface{
 		if sanitized {
 			key = UnSanitizeKey(originalKey)
 		}
+		steps := parsePath(key)
 		entries = append(entries, entry{
 			originalKey: originalKey,
 			key:         key,
-			depth:       strings.Count(key, ".") + 1,
+			steps:       steps,
 			value:       value,
 		})
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].depth != entries[j].depth {
-			return entries[i].depth < entries[j].depth
+		if len(entries[i].steps) != len(entries[j].steps) {
+			return len(entries[i].steps) < len(entries[j].steps)
 		}
 		if entries[i].key != entries[j].key {
 			return entries[i].key < entries[j].key
@@ -84,34 +112,72 @@ func UnflattenYAML(flat map[string]string, sanitized bool) map[string]interface{
 	result := make(map[string]interface{})
 
 	for _, e := range entries {
-		parts := strings.Split(e.key, ".")
-		current := result
-
-		for i, part := range parts {
-			if i == len(parts)-1 {
-				// Last part: set the value
-				current[part] = e.value
-			} else {
-				// Intermediate part: ensure a nested map exists
-				if existing, ok := current[part]; ok {
-					if nestedMap, ok := existing.(map[string]interface{}); ok {
-						current = nestedMap
-					} else {
-						// Conflict: a leaf value already exists at this key; overwrite with a map
-						newMap := make(map[string]interface{})
-						current[part] = newMap
-						current = newMap
-					}
-				} else {
-					newMap := make(map[string]interface{})
-					current[part] = newMap
-					current = newMap
-				}
-			}
-		}
+		result = setPath(result, e.steps, e.value).(map[string]interface{})
 	}
 
 	return result
+}
+
+// parsePath splits a dotted key into map and array steps. Each dot-separated
+// section is either a plain map key or a key followed by one or more "[n]"
+// indices; everything else is kept as a single literal map key.
+func parsePath(key string) []pathStep {
+	sections := strings.Split(key, ".")
+	steps := make([]pathStep, 0, len(sections))
+	for _, section := range sections {
+		steps = append(steps, parseSection(section)...)
+	}
+	return steps
+}
+
+func parseSection(section string) []pathStep {
+	match := arraySectionPattern.FindStringSubmatch(section)
+	if match == nil {
+		return []pathStep{{key: section}}
+	}
+
+	submatches := arrayIndexPattern.FindAllStringSubmatch(match[2], -1)
+	steps := make([]pathStep, 0, len(submatches)+1)
+	steps = append(steps, pathStep{key: match[1]})
+	for _, submatch := range submatches {
+		index, err := strconv.Atoi(submatch[1])
+		if err != nil || index > maxArrayIndex {
+			// Do not expand untrusted or oversized indices; keep the section literal.
+			return []pathStep{{key: section}}
+		}
+		steps = append(steps, pathStep{index: index, isIndex: true})
+	}
+	return steps
+}
+
+// setPath inserts value at the given steps and returns the resulting container.
+// Intermediate values are created as maps or slices, replacing an existing leaf
+// or a conflicting container type (the deeper path wins). Missing slice entries
+// up to the requested index are padded with nil.
+func setPath(node interface{}, steps []pathStep, value string) interface{} {
+	if len(steps) == 0 {
+		return value
+	}
+
+	step := steps[0]
+	if step.isIndex {
+		list, ok := node.([]interface{})
+		if !ok {
+			list = nil
+		}
+		for len(list) <= step.index {
+			list = append(list, nil)
+		}
+		list[step.index] = setPath(list[step.index], steps[1:], value)
+		return list
+	}
+
+	nestedMap, ok := node.(map[string]interface{})
+	if !ok {
+		nestedMap = make(map[string]interface{})
+	}
+	nestedMap[step.key] = setPath(nestedMap[step.key], steps[1:], value)
+	return nestedMap
 }
 
 func MergeYAML(a, b map[string]interface{}) map[string]interface{} {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -472,6 +473,121 @@ func TestUnflattenYAMLDeterministic(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestUnflattenYAMLArrays(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]string
+		expected map[string]interface{}
+	}{
+		{
+			name:  "scalar list",
+			input: map[string]string{"env[0]": "A", "env[1]": "B"},
+			expected: map[string]interface{}{
+				"env": []interface{}{"A", "B"},
+			},
+		},
+		{
+			name: "list of maps",
+			input: map[string]string{
+				"ports[0].name": "http",
+				"ports[0].port": "80",
+				"ports[1].name": "admin",
+			},
+			expected: map[string]interface{}{
+				"ports": []interface{}{
+					map[string]interface{}{"name": "http", "port": "80"},
+					map[string]interface{}{"name": "admin"},
+				},
+			},
+		},
+		{
+			name: "nested lists",
+			input: map[string]string{
+				"matrix[0][0]": "a",
+				"matrix[0][1]": "b",
+				"matrix[1][0]": "c",
+			},
+			expected: map[string]interface{}{
+				"matrix": []interface{}{
+					[]interface{}{"a", "b"},
+					[]interface{}{"c"},
+				},
+			},
+		},
+		{
+			name:  "leaf conflict list wins",
+			input: map[string]string{"env": "leaf", "env[0]": "A"},
+			expected: map[string]interface{}{
+				"env": []interface{}{"A"},
+			},
+		},
+		{
+			name:  "sparse list pads nil",
+			input: map[string]string{"env[1]": "B"},
+			expected: map[string]interface{}{
+				"env": []interface{}{nil, "B"},
+			},
+		},
+		{
+			name:  "mixed with normal maps",
+			input: map[string]string{"image.tag": "v1", "env[0]": "A"},
+			expected: map[string]interface{}{
+				"image": map[string]interface{}{"tag": "v1"},
+				"env":   []interface{}{"A"},
+			},
+		},
+		{
+			name:  "invalid array syntax stays literal",
+			input: map[string]string{"foo[bar]": "x", "foo[0]x": "y"},
+			expected: map[string]interface{}{
+				"foo[bar]": "x",
+				"foo[0]x":  "y",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := UnflattenYAML(tt.input, false)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("UnflattenYAML() = %#v, want %#v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestUnflattenYAMLArraysDeterministic(t *testing.T) {
+	input := map[string]string{
+		"ports[0].name": "http",
+		"ports[0].port": "80",
+		"ports[1].name": "admin",
+		"matrix[0][0]":  "a",
+		"matrix[0][1]":  "b",
+		"matrix[1][0]":  "c",
+		"env":           "leaf",
+		"env[0]":        "A",
+		"env[1]":        "B",
+	}
+	expected := map[string]interface{}{
+		"ports": []interface{}{
+			map[string]interface{}{"name": "http", "port": "80"},
+			map[string]interface{}{"name": "admin"},
+		},
+		"matrix": []interface{}{
+			[]interface{}{"a", "b"},
+			[]interface{}{"c"},
+		},
+		"env": []interface{}{"A", "B"},
+	}
+
+	for i := 0; i < 1000; i++ {
+		result := UnflattenYAML(input, false)
+		if !reflect.DeepEqual(result, expected) {
+			t.Fatalf("non-deterministic result on iteration %d: got %#v", i, result)
+		}
 	}
 }
 
