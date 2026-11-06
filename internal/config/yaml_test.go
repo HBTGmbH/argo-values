@@ -411,6 +411,70 @@ func TestFlattenUnflattenRoundTrip(t *testing.T) {
 	compareMaps(t, result, input)
 }
 
+func TestUnflattenYAMLDeterministic(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     map[string]string
+		sanitized bool
+		expected  map[string]interface{}
+	}{
+		{
+			name:      "conflict leaf overwritten by map unsanitized",
+			input:     map[string]string{"a": "leaf", "a.b": "nested"},
+			sanitized: false,
+			expected: map[string]interface{}{
+				"a": map[string]interface{}{"b": "nested"},
+			},
+		},
+		{
+			name:      "conflict leaf overwritten by map sanitized",
+			input:     map[string]string{"A": "leaf", "A_B": "nested"},
+			sanitized: true,
+			expected: map[string]interface{}{
+				"a": map[string]interface{}{"b": "nested"},
+			},
+		},
+		{
+			name:      "deeper path overwrites intermediate leaf",
+			input:     map[string]string{"a.b": "leaf", "a.b.c": "deep"},
+			sanitized: false,
+			expected: map[string]interface{}{
+				"a": map[string]interface{}{
+					"b": map[string]interface{}{"c": "deep"},
+				},
+			},
+		},
+		{
+			name: "multiple conflicts in different branches",
+			input: map[string]string{
+				"x":     "leaf",
+				"x.y":   "nested",
+				"p.q":   "leaf",
+				"p.q.r": "deep",
+			},
+			sanitized: false,
+			expected: map[string]interface{}{
+				"x": map[string]interface{}{"y": "nested"},
+				"p": map[string]interface{}{
+					"q": map[string]interface{}{"r": "deep"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := 0; i < 1000; i++ {
+				result := UnflattenYAML(tt.input, tt.sanitized)
+				compareMaps(t, result, tt.expected)
+				if t.Failed() {
+					t.Fatalf("non-deterministic result on iteration %d", i)
+				}
+			}
+		})
+	}
+}
+
 // Helper function to compare maps recursively
 func compareMaps(t *testing.T, result, expected map[string]interface{}) {
 	if len(result) != len(expected) {

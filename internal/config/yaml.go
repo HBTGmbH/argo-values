@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -41,21 +42,55 @@ func FlattenYAML(data map[string]interface{}, prefix string, result map[string]s
 }
 
 // UnflattenYAML takes a map of flattened key-value pairs (e.g., "RESOURCES_REQUESTS_CPU" -> "123m")
-// and reconstructs a nested YAML-like map. Keys are split on "_" and lowercased to build the hierarchy.
+// and reconstructs a nested YAML-like map. If sanitized is true, each key is first passed through
+// UnSanitizeKey (lowercased, "_" replaced by "."); otherwise the key is used as-is. In both cases
+// the resulting key is split on "." to build the hierarchy.
+//
+// Entries are inserted in a deterministic order: shallower paths first, then lexicographically by
+// transformed key and finally by original key. This makes deeper paths win over conflicting
+// shallower leaf values (e.g. "a.b" overwrites the leaf "a"), independent of map iteration order.
 func UnflattenYAML(flat map[string]string, sanitized bool) map[string]interface{} {
+	type entry struct {
+		originalKey string
+		key         string
+		depth       int
+		value       string
+	}
+
+	entries := make([]entry, 0, len(flat))
+	for originalKey, value := range flat {
+		key := originalKey
+		if sanitized {
+			key = UnSanitizeKey(originalKey)
+		}
+		entries = append(entries, entry{
+			originalKey: originalKey,
+			key:         key,
+			depth:       strings.Count(key, ".") + 1,
+			value:       value,
+		})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].depth != entries[j].depth {
+			return entries[i].depth < entries[j].depth
+		}
+		if entries[i].key != entries[j].key {
+			return entries[i].key < entries[j].key
+		}
+		return entries[i].originalKey < entries[j].originalKey
+	})
+
 	result := make(map[string]interface{})
 
-	for flatKey, value := range flat {
-		if sanitized {
-			flatKey = UnSanitizeKey(flatKey)
-		}
-		parts := strings.Split(flatKey, ".")
+	for _, e := range entries {
+		parts := strings.Split(e.key, ".")
 		current := result
 
 		for i, part := range parts {
 			if i == len(parts)-1 {
 				// Last part: set the value
-				current[part] = value
+				current[part] = e.value
 			} else {
 				// Intermediate part: ensure a nested map exists
 				if existing, ok := current[part]; ok {
