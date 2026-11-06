@@ -91,6 +91,10 @@ func updateResources(dryRun bool, refresh refreshApplicationFunc, applicationRes
 		existingApplications := make(map[string]bool)
 		for key, event := range events {
 			if event.Obj.GetKind() == "Application" {
+				if event.IsDeleted() {
+					delete(applicationResources, key)
+					continue
+				}
 				_, existingApplications[key] = applicationResources[key]
 				applicationResources[key] = getApplicationResources(event.Obj)
 			} else {

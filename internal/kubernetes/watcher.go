@@ -13,12 +13,21 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
+// watcherReconnectDelay is the pause before re-establishing a watch after its
+// channel was closed by the API server or the network.
+const watcherReconnectDelay = time.Second
+
 // Event holds an event waiting to be flushed.
 type Event struct {
 	EventType string
 	Obj       *unstructured.Unstructured
 	Resource  schema.GroupVersionResource
 	Namespace string
+}
+
+// IsDeleted reports whether the event represents a deleted object.
+func (e Event) IsDeleted() bool {
+	return e.EventType == string(watch.Deleted)
 }
 
 type EventHandler func(map[string]Event)
@@ -126,25 +135,79 @@ func (w *ResourceWatcher) flush() {
 	}
 }
 
+// watchResource watches a single resource in a namespace. For applications it
+// first lists the existing objects so they are known before any change arrives,
+// then starts the watch from the returned resource version. Whenever the watch
+// channel closes (API timeout, "resourceVersion too old", network failure) it
+// reconnects after watcherReconnectDelay instead of terminating the watcher.
+// ConfigMaps and Secrets are not listed initially, because seeding them would
+// trigger a refresh of every application on startup.
 func (w *ResourceWatcher) watchResource(resource schema.GroupVersionResource, namespace string) {
-	wi, err := w.client.Resource(resource).Namespace(namespace).Watch(w.ctx, v1.ListOptions{})
-	if err != nil {
-		w.handleError(fmt.Errorf("failed to watch %s in %s: %v", resource.Resource, namespace, err))
-		return
-	}
-	defer wi.Stop()
-
 	for {
-		select {
-		case <-w.stopCh:
-			logger.Debugf("Stopping %s resource watcher in %s ...", resource.Resource, namespace)
-			return
-		case event, ok := <-wi.ResultChan():
-			if !ok {
-				w.handleError(fmt.Errorf("watch channel closed for %s in %s", resource.Resource, namespace))
+		listOptions := v1.ListOptions{}
+
+		if resource.Resource == "applications" {
+			list, err := w.client.Resource(resource).Namespace(namespace).List(w.ctx, listOptions)
+			if err != nil {
+				w.handleError(fmt.Errorf("failed to list %s in %s: %v", resource.Resource, namespace, err))
 				return
 			}
-			w.handleEvent(event, resource, namespace)
+			w.enqueueList(resource, namespace, list)
+			listOptions.ResourceVersion = list.GetResourceVersion()
+		}
+
+		wi, err := w.client.Resource(resource).Namespace(namespace).Watch(w.ctx, listOptions)
+		if err != nil {
+			w.handleError(fmt.Errorf("failed to watch %s in %s: %v", resource.Resource, namespace, err))
+			return
+		}
+
+		channelClosed := false
+		for !channelClosed {
+			select {
+			case <-w.stopCh:
+				logger.Debugf("Stopping %s resource watcher in %s ...", resource.Resource, namespace)
+				wi.Stop()
+				return
+			case event, ok := <-wi.ResultChan():
+				if !ok {
+					channelClosed = true
+					break
+				}
+				w.handleEvent(event, resource, namespace)
+			}
+		}
+
+		wi.Stop()
+
+		if w.ctx.Err() != nil {
+			return
+		}
+
+		logger.Debugf("Watch channel closed for %s in %s, reconnecting ...", resource.Resource, namespace)
+		select {
+		case <-w.stopCh:
+			return
+		case <-time.After(watcherReconnectDelay):
+		}
+	}
+}
+
+// enqueueList queues every object of a list as an ADDED event. It writes under
+// eventMu into pendingEvents instead of calling the event handler directly,
+// because the handler is invoked by the flush goroutine and must not race it.
+func (w *ResourceWatcher) enqueueList(resource schema.GroupVersionResource, namespace string, list *unstructured.UnstructuredList) {
+	w.eventMu.Lock()
+	defer w.eventMu.Unlock()
+
+	for i := range list.Items {
+		obj := &list.Items[i]
+		key := fmt.Sprintf("%s/%s/%s", resource.Resource, namespace, obj.GetName())
+		w.pendingEvents[key] = Event{
+			EventType: string(watch.Added),
+			Obj:       obj,
+			Resource:  resource,
+			Namespace: namespace,
 		}
 	}
 }

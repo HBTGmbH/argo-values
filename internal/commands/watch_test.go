@@ -7,6 +7,7 @@ import (
 	"argo-values/internal/kubernetes"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 type refreshCall struct {
@@ -225,6 +226,28 @@ func TestGetApplicationResourcesWithoutNamespaceUsesDefault(t *testing.T) {
 	want := []string{"configmaps/default/cm"}
 	if len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func TestUpdateResourcesRemovesDeletedApplication(t *testing.T) {
+	applicationResources := map[string][]string{
+		"applications/argocd/app1": {"configmaps/default/cm"},
+	}
+
+	var calls []refreshCall
+	handler := updateResources(false, fakeRefresh(&calls), applicationResources)
+
+	event := applicationEvent(map[string]interface{}{"name": "value-configs", "value": "cm"})
+	event.EventType = string(watch.Deleted)
+	handler(map[string]kubernetes.Event{
+		"applications/argocd/app1": event,
+	})
+
+	if _, ok := applicationResources["applications/argocd/app1"]; ok {
+		t.Fatalf("expected deleted application to be removed from map, got %v", applicationResources)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("expected no refresh calls for a deleted application, got %v", calls)
 	}
 }
 

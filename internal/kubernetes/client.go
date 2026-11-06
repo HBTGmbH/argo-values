@@ -18,8 +18,8 @@ import (
 
 // Client wraps Kubernetes client functionality
 type Client struct {
-	clientSet *kubernetes.Clientset
-	client    *dynamic.DynamicClient
+	clientSet kubernetes.Interface
+	client    dynamic.Interface
 }
 
 // NewClient creates a new Kubernetes client
