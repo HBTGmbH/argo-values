@@ -90,7 +90,7 @@ overwriting earlier ones for the same keys.`,
 		if err != nil {
 			logger.Fatalf("Failed to read .helmignore: %v", err)
 		}
-		err = prepareApplicationFiles(config.TargetDirectory, config.TargetDirectory, helmIgnore, appEnv, config.DryRun)
+		err = prepareApplicationFiles(config.TargetDirectory, helmIgnore, appEnv, config.DryRun)
 		if err != nil {
 			logger.Fatalf("Failed to inject ENV values: %v", err)
 		}
@@ -157,13 +157,13 @@ func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, sec
 	return result, nil
 }
 
-func prepareApplicationFiles(baseDirectory string, directory string, ignorePatterns *helm.IgnoreFile, env map[string]string, dryRun bool) error {
+func prepareApplicationFiles(directory string, ignorePatterns *helm.IgnoreFile, env map[string]string, dryRun bool) error {
 	err := filepath.Walk(directory, func(path string, file os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if filepath.Base(directory) == file.Name() {
+		if file.IsDir() {
 			return nil
 		}
 
@@ -173,11 +173,7 @@ func prepareApplicationFiles(baseDirectory string, directory string, ignorePatte
 			return nil
 		}
 
-		if file.IsDir() {
-			return prepareApplicationFiles(baseDirectory, filepath.Join(directory, file.Name()), ignorePatterns, env, dryRun)
-		}
-
-		err = processFile(baseDirectory, path, env, dryRun)
+		err = processFile(directory, path, env, dryRun)
 		if err != nil {
 			return fmt.Errorf("failed to process file %s: %v", path, err)
 		}
