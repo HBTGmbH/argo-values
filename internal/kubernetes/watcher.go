@@ -38,7 +38,15 @@ type ResourceWatcher struct {
 	pendingEvents map[string]Event
 }
 
+// NewResourceWatcher creates a ResourceWatcher for the given client, namespaces and event handler.
+// debounceInterval defines how often pending events are flushed and must be greater than zero.
+// It returns an error if debounceInterval is zero or negative. The client is only used once
+// Start is called, so it may be nil if the watcher is not started.
 func NewResourceWatcher(client *Client, debounceInterval time.Duration, namespaces []string, eventHandler EventHandler) (*ResourceWatcher, error) {
+	if debounceInterval <= 0 {
+		return nil, fmt.Errorf("refresh interval must be greater than zero, got %s", debounceInterval)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &ResourceWatcher{
