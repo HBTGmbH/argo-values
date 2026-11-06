@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -204,11 +205,36 @@ func SaveYAML(yamlData map[string]interface{}, file string) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(file, rawYaml, 0644)
+
+	tmpFile, err := os.CreateTemp(filepath.Dir(file), ".argo-values-*.yaml")
 	if err != nil {
 		return err
 	}
-	return nil
+	tmpName := tmpFile.Name()
+	defer os.Remove(tmpName)
+
+	if err := tmpFile.Chmod(0600); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if _, err := tmpFile.Write(rawYaml); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+
+	info, err := os.Lstat(file)
+	if err == nil {
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("refusing to overwrite non-regular file %s", file)
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	return os.Rename(tmpName, file)
 }
 
 func SaveTemp(yamlData map[string]interface{}) {

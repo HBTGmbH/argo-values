@@ -169,6 +169,11 @@ func prepareApplicationFiles(directory string, ignorePatterns *helm.IgnoreFile, 
 			return nil
 		}
 
+		if !file.Mode().IsRegular() {
+			logger.Debugf("Skip non-regular file %s", path)
+			return nil
+		}
+
 		// Check if the file should be ignored
 		if ignorePatterns.ShouldIgnore(path, directory) {
 			logger.Debugf("Ignore file %s", path)
@@ -189,6 +194,14 @@ func prepareApplicationFiles(directory string, ignorePatterns *helm.IgnoreFile, 
 func processFile(baseDirectory string, filePath string, env map[string]string, dryRun bool) error {
 	relPath, _ := filepath.Rel(baseDirectory, filePath)
 	logger.Debugf("Processing %s ...", relPath)
+
+	info, err := os.Lstat(filePath)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("refusing to process non-regular file %s", relPath)
+	}
 
 	// Read file content
 	content, err := os.ReadFile(filePath)

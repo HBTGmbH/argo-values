@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -588,6 +590,141 @@ func TestUnflattenYAMLArraysDeterministic(t *testing.T) {
 		if !reflect.DeepEqual(result, expected) {
 			t.Fatalf("non-deterministic result on iteration %d: got %#v", i, result)
 		}
+	}
+}
+
+func saveYAMLTestData() map[string]interface{} {
+	return map[string]interface{}{
+		"password": "secret",
+		"replicas": "3",
+	}
+}
+
+func tempFiles(t *testing.T, dir string) []string {
+	t.Helper()
+
+	matches, err := filepath.Glob(filepath.Join(dir, ".argo-values-*"))
+	if err != nil {
+		t.Fatalf("failed to glob temp files: %v", err)
+	}
+	return matches
+}
+
+func TestSaveYAMLCreatesFileWith0600(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "values.yaml")
+
+	data := saveYAMLTestData()
+	if err := SaveYAML(data, path); err != nil {
+		t.Fatalf("SaveYAML returned error: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("failed to stat %s: %v", path, err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Errorf("file mode = %o, want %o", got, 0600)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", path, err)
+	}
+	want := "password: secret\nreplicas: \"3\"\n"
+	if string(content) != want {
+		t.Errorf("file content = %q, want %q", string(content), want)
+	}
+}
+
+func TestSaveYAMLTightensExistingPermissions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "values.yaml")
+	if err := os.WriteFile(path, []byte("old: value\n"), 0644); err != nil {
+		t.Fatalf("failed to create existing file: %v", err)
+	}
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatalf("failed to chmod existing file: %v", err)
+	}
+
+	if err := SaveYAML(saveYAMLTestData(), path); err != nil {
+		t.Fatalf("SaveYAML returned error: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("failed to stat %s: %v", path, err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Errorf("file mode = %o, want %o", got, 0600)
+	}
+}
+
+func TestSaveYAMLRefusesSymlink(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	target := filepath.Join(outside, "target.yaml")
+	const original = "keep: me\n"
+	if err := os.WriteFile(target, []byte(original), 0600); err != nil {
+		t.Fatalf("failed to create target: %v", err)
+	}
+
+	link := filepath.Join(dir, "values.yaml")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("failed to create symlink: %v", err)
+	}
+
+	if err := SaveYAML(saveYAMLTestData(), link); err == nil {
+		t.Fatal("SaveYAML returned nil error for symlink, want error")
+	}
+
+	content, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("failed to read target: %v", err)
+	}
+	if string(content) != original {
+		t.Errorf("target content = %q, want unchanged %q", string(content), original)
+	}
+
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatalf("failed to lstat symlink: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("link is no longer a symlink, mode = %v", info.Mode())
+	}
+
+	if leftovers := tempFiles(t, dir); len(leftovers) != 0 {
+		t.Errorf("temp files left behind after error: %v", leftovers)
+	}
+}
+
+func TestSaveYAMLRefusesDirectory(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "values.yaml")
+	if err := os.Mkdir(target, 0755); err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+
+	if err := SaveYAML(saveYAMLTestData(), target); err == nil {
+		t.Fatal("SaveYAML returned nil error for directory, want error")
+	}
+
+	if leftovers := tempFiles(t, dir); len(leftovers) != 0 {
+		t.Errorf("temp files left behind after error: %v", leftovers)
+	}
+}
+
+func TestSaveYAMLLeavesNoTempFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "values.yaml")
+
+	if err := SaveYAML(saveYAMLTestData(), path); err != nil {
+		t.Fatalf("SaveYAML returned error: %v", err)
+	}
+
+	if leftovers := tempFiles(t, dir); len(leftovers) != 0 {
+		t.Errorf("temp files left behind after write: %v", leftovers)
 	}
 }
 

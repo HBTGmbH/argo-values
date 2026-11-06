@@ -136,6 +136,55 @@ func TestProcessFile(t *testing.T) {
 	}
 }
 
+func TestPrepareApplicationFilesSkipsSymlink(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	target := filepath.Join(outside, "target.txt")
+	writeTestFile(t, target, "${A}")
+
+	link := filepath.Join(root, "link.txt")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("failed to create symlink: %v", err)
+	}
+
+	env := map[string]string{"A": "done"}
+	if err := prepareApplicationFiles(root, &helm.IgnoreFile{}, env, false); err != nil {
+		t.Fatalf("prepareApplicationFiles returned error: %v", err)
+	}
+
+	if got := readTestFile(t, target); got != "${A}" {
+		t.Errorf("target content = %q, want unchanged %q", got, "${A}")
+	}
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatalf("failed to lstat symlink: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("link is no longer a symlink, mode = %v", info.Mode())
+	}
+}
+
+func TestProcessFileRefusesSymlink(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	target := filepath.Join(outside, "target.txt")
+	writeTestFile(t, target, "${A}")
+
+	link := filepath.Join(root, "link.txt")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("failed to create symlink: %v", err)
+	}
+
+	env := map[string]string{"A": "done"}
+	if err := processFile(root, link, env, false); err == nil {
+		t.Fatal("processFile returned nil error for symlink, want error")
+	}
+
+	if got := readTestFile(t, target); got != "${A}" {
+		t.Errorf("target content = %q, want unchanged %q", got, "${A}")
+	}
+}
+
 func TestProcessFileDoesNotLogSecretValue(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "file.txt")
