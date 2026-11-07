@@ -11,9 +11,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Run tests
+        run: go test ./...
+
   goreleaser:
     name: GoReleaser
     runs-on: ubuntu-latest
+    needs: test
     permissions:
       contents: write # create the GitHub release and upload its assets
     steps:
@@ -38,7 +57,7 @@ jobs:
   docker:
     name: Docker image
     runs-on: ubuntu-latest
-    needs: goreleaser
+    needs: test
     permissions:
       contents: read
       packages: write # push the container image to GitHub Container Registry
