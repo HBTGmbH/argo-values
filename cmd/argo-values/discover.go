@@ -1,4 +1,4 @@
-package commands
+package main
 
 import (
 	"fmt"
@@ -7,18 +7,16 @@ import (
 
 	"argo-values/internal/config"
 	"argo-values/internal/logger"
-
-	"github.com/spf13/cobra"
 )
 
 // discoveryToken is written to stdout when the application is supported.
 // Argo CD requires both exit code 0 and non-empty stdout during discovery.
 const discoveryToken = "argo-values"
 
-var DiscoverCommand = &cobra.Command{
-	Use:   "discover",
-	Short: "Validates Argo values CMP plugin usage for an application",
-	Long: `Validates whether the Argo CD Config Management Plugin (CMP) is properly configured
+type DiscoverCmd struct{}
+
+func (DiscoverCmd) Help() string {
+	return `Validates whether the Argo CD Config Management Plugin (CMP) is properly configured
 for an application. This command checks if the application parameters include the
 required configuration for the argo-values plugin to function correctly.
 
@@ -27,24 +25,25 @@ used for a particular application during the discovery phase.
 
 If the application is supported, a discovery token is written to stdout and the
 command exits with code 0. Otherwise nothing is written to stdout and the command
-exits with code 2.`,
+exits with code 2.`
+}
 
-	Run: func(cmd *cobra.Command, args []string) {
-		supported, err := discoverApplication()
-		if err != nil {
-			logger.Fatalf("Failed to parse parameters: %v", err)
-		}
+func (c *DiscoverCmd) Run(g *Global) error {
+	supported, err := discoverApplication()
+	if err != nil {
+		logger.Fatalf("Failed to parse parameters: %v", err)
+	}
 
-		writeDiscoveryResult(os.Stdout, supported)
+	writeDiscoveryResult(os.Stdout, supported)
 
-		if !supported {
-			logger.Debugf("Unsupported application")
-			os.Exit(2)
-		}
+	if !supported {
+		logger.Debugf("Unsupported application")
+		os.Exit(2)
+	}
 
-		logger.Debugf("Supported application")
-		os.Exit(0)
-	},
+	logger.Debugf("Supported application")
+	os.Exit(0)
+	return nil
 }
 
 // discoverApplication checks whether the current application is supported by

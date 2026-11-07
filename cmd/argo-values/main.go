@@ -1,58 +1,68 @@
 package main
 
 import (
-	"argo-values/internal/commands"
-	"argo-values/internal/config"
 	"argo-values/internal/logger"
 	"os"
 
-	"github.com/spf13/cobra"
-	"k8s.io/utils/env"
+	"github.com/alecthomas/kong"
 )
 
-var RootCmd = &cobra.Command{
-	Use:   "argo-values",
-	Short: "A CLI tool for managing Argo application with values from additional resources like ConfigMaps and Secrets",
-	Run: func(cmd *cobra.Command, args []string) {
-		// Default behavior when no subcommand is provided
-		_ = cmd.Help()
-	},
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Initialize logger with the configured settings
-		logger.Init(config.LogLevel, config.LogFormat, config.LogOutput)
-	},
+// Global holds the flags that are shared by all commands.
+type Global struct {
+	LogLevel        string `name:"log-level" short:"l" env:"LOG_LEVEL" default:"debug" help:"Log level (debug, info, warn, error, fatal, panic)"`
+	LogFormat       string `name:"log-format" env:"LOG_FORMAT" default:"json" help:"Log format (text, json)"`
+	LogOutput       string `name:"log-output" env:"LOG_OUTPUT" default:"stderr" help:"Log output (stderr, stdout)"`
+	KubeConfigPath  string `name:"kubeconfig" short:"k" help:"Path to kubeconfig file"`
+	ValuesFileName  string `name:"file-values" short:"v" default:"app-values.yaml" help:"Path to values file"`
+	TargetDirectory string `name:"file-target" short:"t" default:"." help:"Path to application files"`
+	DryRun          bool   `name:"dry-run" short:"d" help:"dry-run enabled (true, false)"`
 }
 
-func init() {
-	// Add global flags
-	RootCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l",
-		env.GetString("LOG_LEVEL", "debug"), "Log level (debug, info, warn, error, fatal, panic)")
-	RootCmd.PersistentFlags().StringVar(&config.LogFormat, "log-format",
-		env.GetString("LOG_FORMAT", "json"), "Log format (text, json)")
-	RootCmd.PersistentFlags().StringVar(&config.LogOutput, "log-output",
-		env.GetString("LOG_OUTPUT", "stderr"), "Log output (stderr, stdout)")
+type CLI struct {
+	Global Global `embed:""`
 
-	RootCmd.PersistentFlags().StringVarP(&config.KubeConfigPath, "kubeconfig", "k",
-		"", "Path to kubeconfig file")
+	Discover DiscoverCmd `cmd:"" help:"Validates Argo values CMP plugin usage for an application"`
+	Generate GenerateCmd `cmd:"" help:"Generate Argo application resources using Helm"`
+	Init     InitCmd     `cmd:"" help:"Initialize Argo application values from ConfigMaps and Secrets"`
+	Watch    WatchCmd    `cmd:"" help:"Watch Kubernetes resources and refresh Argo applications"`
 
-	RootCmd.PersistentFlags().StringVarP(&config.ValuesFileName, "file-values", "v",
-		"app-values.yaml", "Path to values file")
-	RootCmd.PersistentFlags().StringVarP(&config.TargetDirectory, "file-target", "t",
-		".", "Path to application files")
+	Help HelpCmd `cmd:"" default:"1" hidden:"" help:"Show help."`
+}
 
-	RootCmd.PersistentFlags().BoolVarP(&config.DryRun, "dry-run", "d",
-		false, "dry-run enabled (true, false)")
+type HelpCmd struct{}
 
-	// Add subcommands
-	RootCmd.AddCommand(commands.DiscoverCommand)
-	RootCmd.AddCommand(commands.InitCmd)
-	RootCmd.AddCommand(commands.GenerateCmd)
-	RootCmd.AddCommand(commands.WatchCmd)
+// Run prints the root help when no subcommand was given.
+func (HelpCmd) Run(ctx *kong.Context) error {
+	rootCtx := &kong.Context{
+		Kong: ctx.Kong,
+		Path: []*kong.Path{{App: ctx.Kong.Model}},
+	}
+	return kong.DefaultHelpPrinter(kong.HelpOptions{ValueFormatter: kong.DefaultHelpValueFormatter}, rootCtx)
+}
+
+func New(commandLine *CLI) (*kong.Kong, error) {
+	return kong.New(commandLine,
+		kong.Name("argo-values"),
+		kong.Description("A CLI tool for managing Argo application with values from additional resources like ConfigMaps and Secrets"),
+	)
 }
 
 func main() {
-	if err := RootCmd.Execute(); err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
+	var commandLine CLI
+
+	parser, err := New(&commandLine)
+	if err != nil {
+		logger.Fatalf("Failed to initialize CLI: %v", err)
+	}
+
+	ctx, err := parser.Parse(os.Args[1:])
+	if err != nil {
+		parser.FatalIfErrorf(err)
+	}
+
+	logger.Init(commandLine.Global.LogLevel, commandLine.Global.LogFormat, commandLine.Global.LogOutput)
+
+	if err := ctx.Run(&commandLine.Global); err != nil {
+		logger.Fatalf("%v", err)
 	}
 }

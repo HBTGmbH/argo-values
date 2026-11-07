@@ -1,4 +1,4 @@
-package commands
+package main
 
 import (
 	"argo-values/internal/config"
@@ -12,33 +12,20 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
 )
 
-var (
-	valueConfigs []string
-	envConfigs   []string
-	valueSecrets []string
-	envSecrets   []string
-	envPattern   = regexp.MustCompile(`\$\{([^}]+)\}`)
-)
+var envPattern = regexp.MustCompile(`\$\{([^}]+)\}`)
 
-func init() {
-	InitCmd.Flags().StringArrayVar(&valueConfigs, "value-maps",
-		[]string{}, "ConfigMaps containing values to merge into the application files")
-	InitCmd.Flags().StringArrayVar(&envConfigs, "env-maps",
-		[]string{}, "ConfigMaps containing environment variables to inject into application files")
-	InitCmd.Flags().StringArrayVar(&valueSecrets, "value-secrets",
-		[]string{}, "Secrets containing values to merge into the application files")
-	InitCmd.Flags().StringArrayVar(&envSecrets, "env-secrets",
-		[]string{}, "Secrets containing environment variables to inject into application files")
+type InitCmd struct {
+	ValueConfigs []string `name:"value-maps" sep:"none" help:"ConfigMaps containing values to merge into the application files"`
+	EnvConfigs   []string `name:"env-maps" sep:"none" help:"ConfigMaps containing environment variables to inject into application files"`
+	ValueSecrets []string `name:"value-secrets" sep:"none" help:"Secrets containing values to merge into the application files"`
+	EnvSecrets   []string `name:"env-secrets" sep:"none" help:"Secrets containing environment variables to inject into application files"`
 }
 
-var InitCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize Argo application values from ConfigMaps and Secrets",
-	Long: `Initializes and prepares Argo application manifests by extracting values from Kubernetes
+func (InitCmd) Help() string {
+	return `Initializes and prepares Argo application manifests by extracting values from Kubernetes
 ConfigMaps and Secrets and merging them into the other application resources.
 
 This command performs two main functions:
@@ -49,54 +36,56 @@ The command respects .helmignore patterns and processes all files in the applica
 directory, replacing environment variable placeholders (${VAR_NAME}) with actual values.
 
 Values are merged in the order: ConfigMaps first, then Secrets, with later sources
-overwriting earlier ones for the same keys.`,
+overwriting earlier ones for the same keys.`
+}
 
-	Run: func(cmd *cobra.Command, args []string) {
-		appParameters, err := config.ParseAppParameters()
+func (c *InitCmd) Run(g *Global) error {
+	appParameters, err := config.ParseAppParameters()
+	if err != nil {
+		logger.Fatalf("Failed to parse parameters: %v", err)
+	}
+
+	if len(c.ValueConfigs) != 0 {
+		appParameters.Values.ConfigMaps = c.ValueConfigs
+	}
+	if len(c.ValueSecrets) != 0 {
+		appParameters.Values.Secrets = c.ValueSecrets
+	}
+	if len(c.EnvConfigs) != 0 {
+		appParameters.Env.ConfigMaps = c.EnvConfigs
+	}
+	if len(c.EnvSecrets) != 0 {
+		appParameters.Env.Secrets = c.EnvSecrets
+	}
+
+	logger.Debug("Connecting to Kubernetes cluster")
+	kubeClient, err := kubernetes.NewClient(g.KubeConfigPath)
+	if err != nil {
+		logger.Fatalf("Failed to create Kubernetes client: %v", err)
+	}
+
+	appValues, appEnv, err := generateValues(kubeClient, &appParameters)
+	if err != nil {
+		logger.Fatalf("Init failed with: %v", err)
+	}
+
+	if !g.DryRun {
+		err = config.SaveYAML(appValues, filepath.Join(g.TargetDirectory, g.ValuesFileName))
 		if err != nil {
-			logger.Fatalf("Failed to parse parameters: %v", err)
+			logger.Fatalf("Failed to write values YAML file %s: %v", g.ValuesFileName, err)
 		}
+	}
 
-		if len(valueConfigs) != 0 {
-			appParameters.Values.ConfigMaps = valueConfigs
-		}
-		if len(valueSecrets) != 0 {
-			appParameters.Values.Secrets = valueSecrets
-		}
-		if len(envConfigs) != 0 {
-			appParameters.Env.ConfigMaps = envConfigs
-		}
-		if len(envSecrets) != 0 {
-			appParameters.Env.Secrets = envSecrets
-		}
+	helmIgnore, err := helm.ReadHelmIgnore(g.TargetDirectory)
+	if err != nil {
+		logger.Fatalf("Failed to read .helmignore: %v", err)
+	}
+	err = prepareApplicationFiles(g.TargetDirectory, helmIgnore, appEnv, g.DryRun)
+	if err != nil {
+		logger.Fatalf("Failed to inject ENV values: %v", err)
+	}
 
-		logger.Debug("Connecting to Kubernetes cluster")
-		kubeClient, err := kubernetes.NewClient(config.KubeConfigPath)
-		if err != nil {
-			logger.Fatalf("Failed to create Kubernetes client: %v", err)
-		}
-
-		appValues, appEnv, err := generateValues(kubeClient, &appParameters)
-		if err != nil {
-			logger.Fatalf("Init failed with: %v", err)
-		}
-
-		if !config.DryRun {
-			err = config.SaveYAML(appValues, filepath.Join(config.TargetDirectory, config.ValuesFileName))
-			if err != nil {
-				logger.Fatalf("Failed to write values YAML file %s: %v", config.ValuesFileName, err)
-			}
-		}
-
-		helmIgnore, err := helm.ReadHelmIgnore(config.TargetDirectory)
-		if err != nil {
-			logger.Fatalf("Failed to read .helmignore: %v", err)
-		}
-		err = prepareApplicationFiles(config.TargetDirectory, helmIgnore, appEnv, config.DryRun)
-		if err != nil {
-			logger.Fatalf("Failed to inject ENV values: %v", err)
-		}
-	},
+	return nil
 }
 
 func generateValues(client *kubernetes.Client, appParameters *config.AppParameters) (map[string]any, map[string]string, error) {

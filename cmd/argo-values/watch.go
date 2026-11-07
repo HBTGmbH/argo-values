@@ -1,7 +1,6 @@
-package commands
+package main
 
 import (
-	"argo-values/internal/config"
 	"argo-values/internal/kubernetes"
 	"argo-values/internal/logger"
 	"argo-values/internal/utils"
@@ -13,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/strings/slices"
 )
@@ -21,22 +19,13 @@ import (
 // refreshConcurrency limits how many application refreshes run in parallel.
 const refreshConcurrency = 5
 
-var (
-	debounceDuration time.Duration
-	namespaces       []string
-)
-
-func init() {
-	WatchCmd.Flags().DurationVarP(&debounceDuration, "refresh-interval", "i",
-		config.GetSecondsFromEnv("ARGOCD_VALUES_REFRESH_SECONDS", 2*time.Second), "Debounce interval for resource change events")
-	WatchCmd.Flags().StringArrayVar(&namespaces, "namespaces",
-		config.GetArrayFromEnv("ARGOCD_VALUES_NAMESPACES", []string{"argocd", "default"}), "Namespaces to watch for resource changes")
+type WatchCmd struct {
+	RefreshInterval int      `name:"refresh-interval" short:"i" env:"ARGOCD_VALUES_REFRESH_SECONDS" default:"2" help:"Debounce interval in seconds for resource change events"`
+	Namespaces      []string `name:"namespaces" env:"ARGOCD_VALUES_NAMESPACES" default:"argocd,default" help:"Namespaces to watch for resource changes"`
 }
 
-var WatchCmd = &cobra.Command{
-	Use:   "watch",
-	Short: "Watch Kubernetes resources and refresh Argo applications",
-	Long: `Watches Kubernetes resources in specified namespaces and automatically refreshes
+func (WatchCmd) Help() string {
+	return `Watches Kubernetes resources in specified namespaces and automatically refreshes
 Argo CD applications when their dependent resources (ConfigMaps, Secrets) change.
 
 This command establishes watches on ConfigMaps and Secrets in the specified namespaces
@@ -47,41 +36,43 @@ The command maintains a mapping of which applications depend on which resources 
 only refreshes applications that are affected by the specific resource changes.
 
 Use this command to enable automatic application updates when configuration changes
-without requiring manual intervention or waiting for the next reconciliation cycle.`,
+without requiring manual intervention or waiting for the next reconciliation cycle.`
+}
 
-	Run: func(cmd *cobra.Command, args []string) {
-		logger.Debug("Connecting to Kubernetes cluster")
-		kubeClient, err := kubernetes.NewClient(config.KubeConfigPath)
-		if err != nil {
-			logger.Fatalf("Failed to create Kubernetes client: %v", err)
-		}
+func (c *WatchCmd) Run(g *Global) error {
+	logger.Debug("Connecting to Kubernetes cluster")
+	kubeClient, err := kubernetes.NewClient(g.KubeConfigPath)
+	if err != nil {
+		logger.Fatalf("Failed to create Kubernetes client: %v", err)
+	}
 
-		// Create and start the watcher
-		watcher, err := kubernetes.NewResourceWatcher(
-			kubeClient, debounceDuration, namespaces,
-			updateResources(config.DryRun, kubeClient.RefreshApplication, make(map[string][]string)),
-		)
-		if err != nil {
-			logger.Fatalf("Failed to create watcher: %v", err)
-		}
+	// Create and start the watcher
+	watcher, err := kubernetes.NewResourceWatcher(
+		kubeClient, time.Duration(c.RefreshInterval)*time.Second, c.Namespaces,
+		updateResources(g.DryRun, kubeClient.RefreshApplication, make(map[string][]string)),
+	)
+	if err != nil {
+		logger.Fatalf("Failed to create watcher: %v", err)
+	}
 
-		// Handle interrupt signal for graceful shutdown
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	// Handle interrupt signal for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-		go func() {
-			<-sigChan
-			logger.Info("Received interrupt signal, shutting down...")
-			watcher.Stop()
-		}()
+	go func() {
+		<-sigChan
+		logger.Info("Received interrupt signal, shutting down...")
+		watcher.Stop()
+	}()
 
-		// Start watching
-		if err := watcher.Start(); err != nil {
-			logger.Fatalf("Start watching resources failed: %v", err)
-		}
+	// Start watching
+	if err := watcher.Start(); err != nil {
+		logger.Fatalf("Start watching resources failed: %v", err)
+	}
 
-		logger.Info("Watcher stopped successfully")
-	},
+	logger.Info("Watcher stopped successfully")
+
+	return nil
 }
 
 type refreshApplicationFunc func(name, namespace string) error

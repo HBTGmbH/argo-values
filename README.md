@@ -13,6 +13,24 @@ from Kubernetes ConfigMaps and Secrets.
 - **Helm Integration**: Full compatibility with Helm charts and templating
 - **Selective Processing**: Respect `.helmignore` patterns using Helm-compatible semantics (including path and directory rules)
 
+## CLI
+
+`argo-values` provides the subcommands `init`, `generate`, `discover`, and `watch`.
+Run `argo-values --help` for an overview and `argo-values <command> --help` for the
+flags of a specific command. The command help also shows the environment variable
+that can be used instead of each flag.
+
+- The `init` list flags (`--value-maps`, `--env-maps`, `--value-secrets`, `--env-secrets`)
+  are repeatable. Each occurrence is added as-is, so comma-separated values are not split.
+- `watch --namespaces` is repeatable and also accepts comma-separated values
+  (for example `--namespaces argocd,default`).
+- `watch --refresh-interval` and `ARGOCD_VALUES_REFRESH_SECONDS` are specified in
+  whole seconds (for example `--refresh-interval 3`).
+- Invalid CLI usage (unknown flags or commands, missing flag values) exits with code `80`
+  and writes the error to stderr.
+- Stdout is reserved for command output such as the discovery token (`discover`) and the
+  rendered Helm manifests (`generate`); logs go to stderr by default.
+
 ## Scope and Positioning
 
 argo-values is built around **non-sensitive configuration** from ConfigMaps. Its primary purpose is to let Helm charts
