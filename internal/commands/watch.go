@@ -103,7 +103,7 @@ func updateResources(dryRun bool, refresh refreshApplicationFunc, applicationRes
 		var changedResources []string
 		applicationsInBatch := make(map[string]bool)
 		for key, event := range events {
-			if event.Obj.GetKind() == "Application" {
+			if event.Resource.Resource == "applications" {
 				if event.IsDeleted() {
 					delete(applicationResources, key)
 					continue

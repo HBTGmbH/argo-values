@@ -7,8 +7,26 @@ import (
 	"argo-values/internal/kubernetes"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 )
+
+func resourceForKind(kind string) schema.GroupVersionResource {
+	switch kind {
+	case "ConfigMap":
+		return schema.GroupVersionResource{Group: "", Version: "v1", Resource: "configmaps"}
+	case "Secret":
+		return schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}
+	default:
+		return schema.GroupVersionResource{}
+	}
+}
+
+var applicationResource = schema.GroupVersionResource{
+	Group:    "argoproj.io",
+	Version:  "v1alpha1",
+	Resource: "applications",
+}
 
 type refreshCall struct {
 	name      string
@@ -32,6 +50,7 @@ func resourceEvent(kind, name string) kubernetes.Event {
 				},
 			},
 		},
+		Resource: resourceForKind(kind),
 	}
 }
 
@@ -41,6 +60,7 @@ func applicationEvent(envs ...map[string]interface{}) kubernetes.Event {
 		envSlice = append(envSlice, env)
 	}
 	return kubernetes.Event{
+		Resource: applicationResource,
 		Obj: &unstructured.Unstructured{
 			Object: map[string]interface{}{
 				"kind": "Application",
