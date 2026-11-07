@@ -48,7 +48,10 @@ func TestMergeDataIsDeterministic(t *testing.T) {
 
 	var first map[string]interface{}
 	for i := 0; i < 100; i++ {
-		result := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseYAML)
+		result, err := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseYAML)
+		if err != nil {
+			t.Fatalf("mergeData() returned error on iteration %d: %v", i, err)
+		}
 		if i == 0 {
 			first = result
 		} else if !reflect.DeepEqual(result, first) {
@@ -69,12 +72,18 @@ func TestMergeDataSourcePrecedence(t *testing.T) {
 	configMaps := map[string]*v1.ConfigMap{"cm1": cm1, "cm2": cm2}
 	secrets := map[string]*v1.Secret{"secret": secret}
 
-	got := mergeData(configMaps, []string{"cm1", "cm2"}, nil, nil, config.ParseYAML)
+	got, err := mergeData(configMaps, []string{"cm1", "cm2"}, nil, nil, config.ParseYAML)
+	if err != nil {
+		t.Fatalf("mergeData() returned error: %v", err)
+	}
 	if got["key"] != "second" {
 		t.Errorf("later ConfigMap must win: key = %#v, want %q", got["key"], "second")
 	}
 
-	got = mergeData(configMaps, []string{"cm1", "cm2"}, secrets, []string{"secret"}, config.ParseYAML)
+	got, err = mergeData(configMaps, []string{"cm1", "cm2"}, secrets, []string{"secret"}, config.ParseYAML)
+	if err != nil {
+		t.Fatalf("mergeData() returned error: %v", err)
+	}
 	if got["key"] != "secret" {
 		t.Errorf("Secret after ConfigMaps must win: key = %#v, want %q", got["key"], "secret")
 	}
@@ -89,7 +98,10 @@ func TestMergeDataEnvModePreservesKeys(t *testing.T) {
 		}},
 	}
 
-	merged := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseEnv)
+	merged, err := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseEnv)
+	if err != nil {
+		t.Fatalf("mergeData() returned error: %v", err)
+	}
 	flat := map[string]string{}
 	config.FlattenYAML(merged, "", flat)
 
@@ -111,7 +123,10 @@ func TestMergeDataValuesModeParsesYAML(t *testing.T) {
 		}},
 	}
 
-	merged := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseYAML)
+	merged, err := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseYAML)
+	if err != nil {
+		t.Fatalf("mergeData() returned error: %v", err)
+	}
 
 	expected := map[string]interface{}{
 		"resources": map[string]interface{}{
@@ -443,17 +458,34 @@ func TestProcessFileSkipsBinaryFile(t *testing.T) {
 	}
 }
 
-func TestMergeDataSkipsMissingConfigMapAndSecret(t *testing.T) {
-	// A nil map entry must not panic; missing sources are skipped instead.
-	got := mergeData(
+func TestMergeDataRejectsMissingConfigMap(t *testing.T) {
+	_, err := mergeData(
 		map[string]*v1.ConfigMap{},
 		[]string{"missing"},
+		map[string]*v1.Secret{},
+		nil,
+		config.ParseYAML,
+	)
+	if err == nil {
+		t.Fatal("mergeData() returned nil error for missing ConfigMap, want error")
+	}
+	if !strings.Contains(err.Error(), "missing") {
+		t.Errorf("error = %q, want it to mention %q", err.Error(), "missing")
+	}
+}
+
+func TestMergeDataRejectsMissingSecret(t *testing.T) {
+	_, err := mergeData(
+		map[string]*v1.ConfigMap{},
+		nil,
 		map[string]*v1.Secret{},
 		[]string{"missing"},
 		config.ParseYAML,
 	)
-
-	if len(got) != 0 {
-		t.Errorf("mergeData() = %#v, want empty result", got)
+	if err == nil {
+		t.Fatal("mergeData() returned nil error for missing Secret, want error")
+	}
+	if !strings.Contains(err.Error(), "missing") {
+		t.Errorf("error = %q, want it to mention %q", err.Error(), "missing")
 	}
 }

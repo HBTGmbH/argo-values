@@ -125,13 +125,19 @@ func generateValues(client *kubernetes.Client, appParameters *config.AppParamete
 	}
 
 	// Parse YAML from configmaps and secrets
-	mergedValues := mergeData(configMaps, appParameters.Values.ConfigMaps, secrets, appParameters.Values.Secrets, config.ParseYAML)
+	mergedValues, err := mergeData(configMaps, appParameters.Values.ConfigMaps, secrets, appParameters.Values.Secrets, config.ParseYAML)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to init values: %v", err)
+	}
 
 	helmValues := config.UnflattenYAML(appParameters.Helm.Values, false)
 	helmValues = config.CoerceScalars(helmValues)
 	mergedValues = config.MergeYAML(mergedValues, helmValues)
 
-	mergedEnv := mergeData(configMaps, appParameters.Env.ConfigMaps, secrets, appParameters.Env.Secrets, config.ParseEnv)
+	mergedEnv, err := mergeData(configMaps, appParameters.Env.ConfigMaps, secrets, appParameters.Env.Secrets, config.ParseEnv)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to init env: %v", err)
+	}
 	flattenEnv := map[string]string{}
 	config.FlattenYAML(mergedEnv, "", flattenEnv)
 
@@ -148,14 +154,13 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, secrets map[string]*v1.Secret, secretNames []string, parse func(key, value string) map[string]interface{}) map[string]interface{} {
+func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, secrets map[string]*v1.Secret, secretNames []string, parse func(key, value string) map[string]interface{}) (map[string]interface{}, error) {
 	var result map[string]interface{}
 
 	for _, name := range configMapNames {
 		configMap := configMaps[name]
 		if configMap == nil {
-			logger.Warnf("ConfigMap %q was not loaded, skipping", name)
-			continue
+			return nil, fmt.Errorf("ConfigMap %q was not loaded", name)
 		}
 		data := configMap.Data
 		for _, key := range sortedKeys(data) {
@@ -166,8 +171,7 @@ func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, sec
 	for _, name := range secretNames {
 		secret := secrets[name]
 		if secret == nil {
-			logger.Warnf("Secret %q was not loaded, skipping", name)
-			continue
+			return nil, fmt.Errorf("Secret %q was not loaded", name)
 		}
 		data := secret.Data
 		for _, key := range sortedKeys(data) {
@@ -175,7 +179,7 @@ func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, sec
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 func prepareApplicationFiles(directory string, ignorePatterns *helm.IgnoreFile, env map[string]string, dryRun bool) error {
