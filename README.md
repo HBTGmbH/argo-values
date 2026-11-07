@@ -197,7 +197,7 @@ data:
         memory: "100Mi"
 ```
 
-All values from `env-configs` or `value-secrets` are available as environment variables and substituted in the Helm 
+All values from `env-configs` or `env-secrets` are available as environment variables and substituted in the Helm 
 templates of the application:
 
 ```yaml
@@ -209,6 +209,10 @@ metadata:
 data:  
   cpu: "123m"
 ```
+
+> **Note:** For `env-configs` and `env-secrets`, every data key is the name of the environment variable and the value is
+> taken literally — it is never interpreted as YAML. In contrast, values from `value-configs`/`value-secrets` are parsed
+> as YAML.
 
 > **Note:** Use ConfigMaps for non-sensitive configuration. For secrets, see [Scope and Positioning](#scope-and-positioning) 
 > above and prefer a destination-cluster solution such as External Secrets Operator.

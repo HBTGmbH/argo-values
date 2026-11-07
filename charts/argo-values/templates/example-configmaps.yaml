@@ -5,8 +5,7 @@ metadata:
   name: test-env
   namespace: default
 data:
-  values.yaml: |
-    cpu: "123m"
+  cpu: "123m"
 ---
 apiVersion: v1
 kind: ConfigMap

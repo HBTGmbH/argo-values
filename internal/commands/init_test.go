@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"argo-values/internal/config"
 	"argo-values/internal/helm"
 	"argo-values/internal/logger"
 
@@ -46,7 +47,7 @@ func TestMergeDataIsDeterministic(t *testing.T) {
 
 	var first map[string]interface{}
 	for i := 0; i < 100; i++ {
-		result := mergeData(configMaps, []string{"cm"}, nil, nil)
+		result := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseYAML)
 		if i == 0 {
 			first = result
 		} else if !reflect.DeepEqual(result, first) {
@@ -67,14 +68,59 @@ func TestMergeDataSourcePrecedence(t *testing.T) {
 	configMaps := map[string]*v1.ConfigMap{"cm1": cm1, "cm2": cm2}
 	secrets := map[string]*v1.Secret{"secret": secret}
 
-	got := mergeData(configMaps, []string{"cm1", "cm2"}, nil, nil)
+	got := mergeData(configMaps, []string{"cm1", "cm2"}, nil, nil, config.ParseYAML)
 	if got["key"] != "second" {
 		t.Errorf("later ConfigMap must win: key = %#v, want %q", got["key"], "second")
 	}
 
-	got = mergeData(configMaps, []string{"cm1", "cm2"}, secrets, []string{"secret"})
+	got = mergeData(configMaps, []string{"cm1", "cm2"}, secrets, []string{"secret"}, config.ParseYAML)
 	if got["key"] != "secret" {
 		t.Errorf("Secret after ConfigMaps must win: key = %#v, want %q", got["key"], "secret")
+	}
+}
+
+func TestMergeDataEnvModePreservesKeys(t *testing.T) {
+	configMaps := map[string]*v1.ConfigMap{
+		"cm": {Data: map[string]string{
+			"CONFIG_JSON": `{"a":1}`,
+			"EMPTY":       "",
+			"NULL_VALUE":  "null",
+		}},
+	}
+
+	merged := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseEnv)
+	flat := map[string]string{}
+	config.FlattenYAML(merged, "", flat)
+
+	if got := flat["CONFIG_JSON"]; got != `{"a":1}` {
+		t.Errorf("flat[CONFIG_JSON] = %q, want %q", got, `{"a":1}`)
+	}
+	if got := flat["EMPTY"]; got != "" {
+		t.Errorf("flat[EMPTY] = %q, want %q", got, "")
+	}
+	if got := flat["NULL_VALUE"]; got != "null" {
+		t.Errorf("flat[NULL_VALUE] = %q, want %q", got, "null")
+	}
+}
+
+func TestMergeDataValuesModeParsesYAML(t *testing.T) {
+	configMaps := map[string]*v1.ConfigMap{
+		"cm": {Data: map[string]string{
+			"values.yaml": "resources:\n  requests:\n    cpu: \"123m\"\n",
+		}},
+	}
+
+	merged := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseYAML)
+
+	expected := map[string]interface{}{
+		"resources": map[string]interface{}{
+			"requests": map[string]interface{}{
+				"cpu": "123m",
+			},
+		},
+	}
+	if !reflect.DeepEqual(merged, expected) {
+		t.Errorf("merged = %#v, want %#v", merged, expected)
 	}
 }
 

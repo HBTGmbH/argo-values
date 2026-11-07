@@ -8,17 +8,88 @@ import (
 )
 
 func TestParseYAML(t *testing.T) {
-	// Simple happy path test for ParseYAML
-	result := ParseYAML("test", "key: value")
-
-	if len(result) != 1 {
-		t.Fatalf("Expected 1 key, got %d", len(result))
+	tests := []struct {
+		name     string
+		key      string
+		value    string
+		expected map[string]interface{}
+	}{
+		{
+			name:     "valid map",
+			key:      "test",
+			value:    "key: value",
+			expected: map[string]interface{}{"key": "value"},
+		},
+		{
+			name:     "scalar quantity stays string",
+			key:      "key",
+			value:    "123m",
+			expected: map[string]interface{}{"key": "123m"},
+		},
+		{
+			name:     "empty value keeps key",
+			key:      "key",
+			value:    "",
+			expected: map[string]interface{}{"key": ""},
+		},
+		{
+			name:     "null value stays literal",
+			key:      "key",
+			value:    "null",
+			expected: map[string]interface{}{"key": "null"},
+		},
+		{
+			name:     "broken structured yaml falls back",
+			key:      "key",
+			value:    "resources:\n  cpu: [",
+			expected: map[string]interface{}{"key": "resources:\n  cpu: ["},
+		},
 	}
 
-	if val, exists := result["key"]; !exists {
-		t.Error("Expected key 'key' not found")
-	} else if val != "value" {
-		t.Errorf("Expected value 'value', got %v", val)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ParseYAML(tt.key, tt.value)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("ParseYAML(%q, %q) = %#v, want %#v", tt.key, tt.value, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseEnv(t *testing.T) {
+	tests := []struct {
+		name     string
+		key      string
+		value    string
+		expected map[string]interface{}
+	}{
+		{
+			name:     "json object stays literal",
+			key:      "CONFIG_JSON",
+			value:    `{"a":1}`,
+			expected: map[string]interface{}{"CONFIG_JSON": `{"a":1}`},
+		},
+		{
+			name:     "empty value stays literal",
+			key:      "EMPTY",
+			value:    "",
+			expected: map[string]interface{}{"EMPTY": ""},
+		},
+		{
+			name:     "null stays literal",
+			key:      "NULL_VALUE",
+			value:    "null",
+			expected: map[string]interface{}{"NULL_VALUE": "null"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ParseEnv(tt.key, tt.value)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("ParseEnv(%q, %q) = %#v, want %#v", tt.key, tt.value, result, tt.expected)
+			}
+		})
 	}
 }
 

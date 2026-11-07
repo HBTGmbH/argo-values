@@ -124,13 +124,13 @@ func generateValues(client *kubernetes.Client, appParameters *config.AppParamete
 	}
 
 	// Parse YAML from configmaps and secrets
-	mergedValues := mergeData(configMaps, appParameters.Values.ConfigMaps, secrets, appParameters.Values.Secrets)
+	mergedValues := mergeData(configMaps, appParameters.Values.ConfigMaps, secrets, appParameters.Values.Secrets, config.ParseYAML)
 
 	helmValues := config.UnflattenYAML(appParameters.Helm.Values, false)
 	helmValues = config.CoerceScalars(helmValues)
 	mergedValues = config.MergeYAML(mergedValues, helmValues)
 
-	mergedEnv := mergeData(configMaps, appParameters.Env.ConfigMaps, secrets, appParameters.Env.Secrets)
+	mergedEnv := mergeData(configMaps, appParameters.Env.ConfigMaps, secrets, appParameters.Env.Secrets, config.ParseEnv)
 	flattenEnv := map[string]string{}
 	config.FlattenYAML(mergedEnv, "", flattenEnv)
 
@@ -147,20 +147,20 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, secrets map[string]*v1.Secret, secretNames []string) map[string]interface{} {
+func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, secrets map[string]*v1.Secret, secretNames []string, parse func(key, value string) map[string]interface{}) map[string]interface{} {
 	var result map[string]interface{}
 
 	for _, name := range configMapNames {
 		data := configMaps[name].Data
 		for _, key := range sortedKeys(data) {
-			result = config.MergeYAML(result, config.ParseYAML(key, data[key]))
+			result = config.MergeYAML(result, parse(key, data[key]))
 		}
 	}
 
 	for _, name := range secretNames {
 		data := secrets[name].Data
 		for _, key := range sortedKeys(data) {
-			result = config.MergeYAML(result, config.ParseYAML(key, string(data[key])))
+			result = config.MergeYAML(result, parse(key, string(data[key])))
 		}
 	}
 

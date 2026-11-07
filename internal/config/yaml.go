@@ -1,6 +1,7 @@
 package config
 
 import (
+	"argo-values/internal/logger"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -89,13 +90,40 @@ type pathStep struct {
 	isIndex bool
 }
 
+// ParseYAML parses value as a YAML map and uses key as the label for the
+// result. If value is not a valid YAML map (error or nil result), the key is
+// preserved and the original value is kept as a string. A warning is logged if
+// the value looks like structured YAML but cannot be parsed, to surface silent
+// misconfiguration without warning for plain scalars such as URLs.
 func ParseYAML(key, value string) map[string]interface{} {
 	var result map[string]interface{}
-	err := yaml.Unmarshal([]byte(value), &result)
-	if err != nil {
-		result = map[string]interface{}{key: value}
+	if err := yaml.Unmarshal([]byte(value), &result); err != nil {
+		if looksLikeStructuredYAML(value) {
+			logger.Warnf("failed to parse value for key %q as YAML, using it as a string: %v", key, err)
+		}
+		return map[string]interface{}{key: value}
+	}
+	if result == nil {
+		return map[string]interface{}{key: value}
 	}
 	return result
+}
+
+// ParseEnv treats key as an environment variable name and value as its literal
+// string value. Unlike ParseYAML, the value is never interpreted as YAML.
+func ParseEnv(key, value string) map[string]interface{} {
+	return map[string]interface{}{key: value}
+}
+
+// looksLikeStructuredYAML reports whether value appears to contain structured
+// YAML (a multi-line document or a flow map/sequence). Plain scalars such as
+// URLs or version strings are not considered structured.
+func looksLikeStructuredYAML(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if strings.Contains(trimmed, "\n") {
+		return true
+	}
+	return strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[")
 }
 
 func SanitizeKey(key string) string {
