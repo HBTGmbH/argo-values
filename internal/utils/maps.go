@@ -1,6 +1,6 @@
 package utils
 
-func GetStringFromMap(values map[string]interface{}, key string) string {
+func GetStringFromMap(values map[string]any, key string) string {
 	if value, exists := values[key]; exists {
 		if valueStr, ok := value.(string); ok {
 			return valueStr
@@ -9,9 +9,9 @@ func GetStringFromMap(values map[string]interface{}, key string) string {
 	return ""
 }
 
-func GetArrayFromMap(values map[string]interface{}, key string) []string {
+func GetArrayFromMap(values map[string]any, key string) []string {
 	if value, exists := values[key]; exists {
-		if valueArr, ok := value.([]interface{}); ok {
+		if valueArr, ok := value.([]any); ok {
 			valueStr := make([]string, len(valueArr))
 			for i, v := range valueArr {
 				if str, ok := v.(string); ok {

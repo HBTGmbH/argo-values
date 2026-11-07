@@ -7,31 +7,31 @@ import (
 func TestGetStringFromMap(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    map[string]interface{}
+		input    map[string]any
 		key      string
 		expected string
 	}{
 		{
 			name:     "existing string key",
-			input:    map[string]interface{}{"key": "value"},
+			input:    map[string]any{"key": "value"},
 			key:      "key",
 			expected: "value",
 		},
 		{
 			name:     "non-existing key",
-			input:    map[string]interface{}{"other": "value"},
+			input:    map[string]any{"other": "value"},
 			key:      "key",
 			expected: "",
 		},
 		{
 			name:     "non-string value",
-			input:    map[string]interface{}{"key": 123},
+			input:    map[string]any{"key": 123},
 			key:      "key",
 			expected: "",
 		},
 		{
 			name:     "empty map",
-			input:    map[string]interface{}{},
+			input:    map[string]any{},
 			key:      "key",
 			expected: "",
 		},
@@ -50,43 +50,43 @@ func TestGetStringFromMap(t *testing.T) {
 func TestGetArrayFromMap(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    map[string]interface{}
+		input    map[string]any
 		key      string
 		expected []string
 	}{
 		{
 			name:     "existing string array",
-			input:    map[string]interface{}{"key": []interface{}{"a", "b", "c"}},
+			input:    map[string]any{"key": []any{"a", "b", "c"}},
 			key:      "key",
 			expected: []string{"a", "b", "c"},
 		},
 		{
 			name:     "non-existing key",
-			input:    map[string]interface{}{"other": []interface{}{"a", "b"}},
+			input:    map[string]any{"other": []any{"a", "b"}},
 			key:      "key",
 			expected: []string{},
 		},
 		{
 			name:     "non-array value",
-			input:    map[string]interface{}{"key": "not an array"},
+			input:    map[string]any{"key": "not an array"},
 			key:      "key",
 			expected: []string{},
 		},
 		{
 			name:     "array with non-string element",
-			input:    map[string]interface{}{"key": []interface{}{"a", 123, "c"}},
+			input:    map[string]any{"key": []any{"a", 123, "c"}},
 			key:      "key",
 			expected: []string{},
 		},
 		{
 			name:     "empty array",
-			input:    map[string]interface{}{"key": []interface{}{}},
+			input:    map[string]any{"key": []any{}},
 			key:      "key",
 			expected: []string{},
 		},
 		{
 			name:     "empty map",
-			input:    map[string]interface{}{},
+			input:    map[string]any{},
 			key:      "key",
 			expected: []string{},
 		},

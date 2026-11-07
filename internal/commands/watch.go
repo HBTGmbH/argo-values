@@ -186,7 +186,7 @@ func getApplicationResources(obj *unstructured.Unstructured) []string {
 
 	if sources, found, err := unstructured.NestedSlice(spec, "sources"); err == nil && found {
 		for _, source := range sources {
-			sourceMap, ok := source.(map[string]interface{})
+			sourceMap, ok := source.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -197,7 +197,7 @@ func getApplicationResources(obj *unstructured.Unstructured) []string {
 	return resources
 }
 
-func getResourcesFromSource(source map[string]interface{}, defaultNamespace string) []string {
+func getResourcesFromSource(source map[string]any, defaultNamespace string) []string {
 	var resources []string
 
 	plugin, found, err := unstructured.NestedMap(source, "plugin")
@@ -220,7 +220,7 @@ func getResourcesFromSource(source map[string]interface{}, defaultNamespace stri
 
 // destinationNamespace returns the destination namespace of an Application,
 // falling back to "default" like init does when ARGOCD_APP_NAMESPACE is unset.
-func destinationNamespace(spec map[string]interface{}) string {
+func destinationNamespace(spec map[string]any) string {
 	namespace, found, err := unstructured.NestedString(spec, "destination", "namespace")
 	if err == nil && found && namespace != "" {
 		return namespace
@@ -228,11 +228,11 @@ func destinationNamespace(spec map[string]interface{}) string {
 	return "default"
 }
 
-func getApplicationResourcesFromParameters(parameters []interface{}, defaultNamespace string) []string {
+func getApplicationResourcesFromParameters(parameters []any, defaultNamespace string) []string {
 	var resources []string
 
 	for _, param := range parameters {
-		if paramMap, ok := param.(map[string]interface{}); ok {
+		if paramMap, ok := param.(map[string]any); ok {
 			kind := getKindFromName(utils.GetStringFromMap(paramMap, "name"))
 			if kind == "" {
 				continue
@@ -244,11 +244,11 @@ func getApplicationResourcesFromParameters(parameters []interface{}, defaultName
 	return resources
 }
 
-func getApplicationResourcesFromEnv(envs []interface{}, defaultNamespace string) []string {
+func getApplicationResourcesFromEnv(envs []any, defaultNamespace string) []string {
 	var resources []string
 
 	for _, env := range envs {
-		if envMap, ok := env.(map[string]interface{}); ok {
+		if envMap, ok := env.(map[string]any); ok {
 			kind := getKindFromName(utils.GetStringFromMap(envMap, "name"))
 			if kind == "" {
 				continue

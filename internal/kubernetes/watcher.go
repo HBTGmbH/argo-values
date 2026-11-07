@@ -371,10 +371,10 @@ func resourceKey(resource schema.GroupVersionResource, namespace, name string) s
 // the list. It carries just enough information for the event handler.
 func minimalObject(resource schema.GroupVersionResource, namespace, name string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": resource.GroupVersion().String(),
 			"kind":       kindForResource(resource),
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      name,
 				"namespace": namespace,
 			},
@@ -407,10 +407,7 @@ func (w *ResourceWatcher) backoff(attempt int) bool {
 		attempt = 5
 	}
 
-	delay := watcherReconnectDelay << attempt
-	if delay > watcherMaxReconnectDelay {
-		delay = watcherMaxReconnectDelay
-	}
+	delay := min(watcherReconnectDelay<<attempt, watcherMaxReconnectDelay)
 
 	select {
 	case <-w.stopCh:

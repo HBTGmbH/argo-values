@@ -3,6 +3,7 @@ package helm
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -21,36 +22,36 @@ func TestReadHelmIgnore(t *testing.T) {
 		},
 		{
 			name:        "empty .helmignore",
-			content:     strPtr(""),
+			content:     new(""),
 			expectError: false,
 			expectedLen: 1,
 		},
 		{
 			name:        ".helmignore with patterns",
-			content:     strPtr("# comment\ntemp/\n*.log\n\nconfig.yaml\n"),
+			content:     new("# comment\ntemp/\n*.log\n\nconfig.yaml\n"),
 			expectError: false,
 			expectedLen: 4, // temp/, *.log, config.yaml + default
 		},
 		{
 			name:        ".helmignore with only comments",
-			content:     strPtr("# comment 1\n# comment 2\n"),
+			content:     new("# comment 1\n# comment 2\n"),
 			expectError: false,
 			expectedLen: 1,
 		},
 		{
 			name:        "UTF-8 BOM is stripped from the first line",
-			content:     strPtr("\xEF\xBB\xBFtemp/\n*.log\n"),
+			content:     new("\xEF\xBB\xBFtemp/\n*.log\n"),
 			expectError: false,
 			expectedLen: 3,
 		},
 		{
 			name:        "double-star is rejected",
-			content:     strPtr("**/*.txt\n"),
+			content:     new("**/*.txt\n"),
 			expectError: true,
 		},
 		{
 			name:        "invalid bracket pattern is rejected",
-			content:     strPtr("[\n"),
+			content:     new("[\n"),
 			expectError: true,
 		},
 	}
@@ -89,8 +90,10 @@ func TestReadHelmIgnore(t *testing.T) {
 
 // strPtr returns a pointer to the given string, used to distinguish "no file"
 // from "empty file" in the test table.
+//
+//go:fix inline
 func strPtr(s string) *string {
-	return &s
+	return new(s)
 }
 
 func TestReadHelmIgnoreStripsBOM(t *testing.T) {
@@ -116,13 +119,7 @@ func TestReadHelmIgnoreAddsDefaultPattern(t *testing.T) {
 		t.Fatalf("ReadHelmIgnore() error = %v", err)
 	}
 
-	found := false
-	for _, pattern := range *result {
-		if pattern == "templates/.?*" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(*result, "templates/.?*")
 	if !found {
 		t.Errorf("ReadHelmIgnore() = %v, want default pattern %q", *result, "templates/.?*")
 	}

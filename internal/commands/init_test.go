@@ -46,8 +46,8 @@ func TestMergeDataIsDeterministic(t *testing.T) {
 		}},
 	}
 
-	var first map[string]interface{}
-	for i := 0; i < 100; i++ {
+	var first map[string]any
+	for i := range 100 {
 		result, err := mergeData(configMaps, []string{"cm"}, nil, nil, config.ParseYAML)
 		if err != nil {
 			t.Fatalf("mergeData() returned error on iteration %d: %v", i, err)
@@ -128,9 +128,9 @@ func TestMergeDataValuesModeParsesYAML(t *testing.T) {
 		t.Fatalf("mergeData() returned error: %v", err)
 	}
 
-	expected := map[string]interface{}{
-		"resources": map[string]interface{}{
-			"requests": map[string]interface{}{
+	expected := map[string]any{
+		"resources": map[string]any{
+			"requests": map[string]any{
 				"cpu": "123m",
 			},
 		},

@@ -12,37 +12,37 @@ func TestParseYAML(t *testing.T) {
 		name     string
 		key      string
 		value    string
-		expected map[string]interface{}
+		expected map[string]any
 	}{
 		{
 			name:     "valid map",
 			key:      "test",
 			value:    "key: value",
-			expected: map[string]interface{}{"key": "value"},
+			expected: map[string]any{"key": "value"},
 		},
 		{
 			name:     "scalar quantity stays string",
 			key:      "key",
 			value:    "123m",
-			expected: map[string]interface{}{"key": "123m"},
+			expected: map[string]any{"key": "123m"},
 		},
 		{
 			name:     "empty value keeps key",
 			key:      "key",
 			value:    "",
-			expected: map[string]interface{}{"key": ""},
+			expected: map[string]any{"key": ""},
 		},
 		{
 			name:     "null value stays literal",
 			key:      "key",
 			value:    "null",
-			expected: map[string]interface{}{"key": "null"},
+			expected: map[string]any{"key": "null"},
 		},
 		{
 			name:     "broken structured yaml falls back",
 			key:      "key",
 			value:    "resources:\n  cpu: [",
-			expected: map[string]interface{}{"key": "resources:\n  cpu: ["},
+			expected: map[string]any{"key": "resources:\n  cpu: ["},
 		},
 	}
 
@@ -61,25 +61,25 @@ func TestParseEnv(t *testing.T) {
 		name     string
 		key      string
 		value    string
-		expected map[string]interface{}
+		expected map[string]any
 	}{
 		{
 			name:     "json object stays literal",
 			key:      "CONFIG_JSON",
 			value:    `{"a":1}`,
-			expected: map[string]interface{}{"CONFIG_JSON": `{"a":1}`},
+			expected: map[string]any{"CONFIG_JSON": `{"a":1}`},
 		},
 		{
 			name:     "empty value stays literal",
 			key:      "EMPTY",
 			value:    "",
-			expected: map[string]interface{}{"EMPTY": ""},
+			expected: map[string]any{"EMPTY": ""},
 		},
 		{
 			name:     "null stays literal",
 			key:      "NULL_VALUE",
 			value:    "null",
-			expected: map[string]interface{}{"NULL_VALUE": "null"},
+			expected: map[string]any{"NULL_VALUE": "null"},
 		},
 	}
 
@@ -144,41 +144,41 @@ func TestSanitizeKey(t *testing.T) {
 func TestFlattenYAML(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    map[string]interface{}
+		input    map[string]any
 		expected map[string]string
 	}{
 		{
 			name:     "flat structure",
-			input:    map[string]interface{}{"key1": "value1", "key2": "value2"},
+			input:    map[string]any{"key1": "value1", "key2": "value2"},
 			expected: map[string]string{"KEY1": "value1", "KEY2": "value2"},
 		},
 		{
 			name:     "nested structure",
-			input:    map[string]interface{}{"outer": map[string]interface{}{"inner": "value"}},
+			input:    map[string]any{"outer": map[string]any{"inner": "value"}},
 			expected: map[string]string{"OUTER_INNER": "value"},
 		},
 		{
 			name:     "deeply nested",
-			input:    map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": "deep"}}},
+			input:    map[string]any{"a": map[string]any{"b": map[string]any{"c": "deep"}}},
 			expected: map[string]string{"A_B_C": "deep"},
 		},
 		{
 			name:     "mixed types",
-			input:    map[string]interface{}{"string": "text", "number": 42, "bool": true},
+			input:    map[string]any{"string": "text", "number": 42, "bool": true},
 			expected: map[string]string{"STRING": "text", "NUMBER": "42", "BOOL": "true"},
 		},
 		{
 			name:     "empty map",
-			input:    map[string]interface{}{},
+			input:    map[string]any{},
 			expected: map[string]string{},
 		},
 		{
 			name: "complex nested",
-			input: map[string]interface{}{
-				"database": map[string]interface{}{
+			input: map[string]any{
+				"database": map[string]any{
 					"host": "localhost",
 					"port": 5432,
-					"credentials": map[string]interface{}{
+					"credentials": map[string]any{
 						"username": "admin",
 						"password": "secret",
 					},
@@ -217,45 +217,45 @@ func TestFlattenYAML(t *testing.T) {
 func TestMergeYAML(t *testing.T) {
 	tests := []struct {
 		name     string
-		a        map[string]interface{}
-		b        map[string]interface{}
-		expected map[string]interface{}
+		a        map[string]any
+		b        map[string]any
+		expected map[string]any
 	}{
 		{
 			name:     "simple merge",
-			a:        map[string]interface{}{"key1": "value1"},
-			b:        map[string]interface{}{"key2": "value2"},
-			expected: map[string]interface{}{"key1": "value1", "key2": "value2"},
+			a:        map[string]any{"key1": "value1"},
+			b:        map[string]any{"key2": "value2"},
+			expected: map[string]any{"key1": "value1", "key2": "value2"},
 		},
 		{
 			name:     "overwrite value",
-			a:        map[string]interface{}{"key": "old"},
-			b:        map[string]interface{}{"key": "new"},
-			expected: map[string]interface{}{"key": "new"},
+			a:        map[string]any{"key": "old"},
+			b:        map[string]any{"key": "new"},
+			expected: map[string]any{"key": "new"},
 		},
 		{
 			name:     "merge nested maps",
-			a:        map[string]interface{}{"outer": map[string]interface{}{"inner1": "value1"}},
-			b:        map[string]interface{}{"outer": map[string]interface{}{"inner2": "value2"}},
-			expected: map[string]interface{}{"outer": map[string]interface{}{"inner1": "value1", "inner2": "value2"}},
+			a:        map[string]any{"outer": map[string]any{"inner1": "value1"}},
+			b:        map[string]any{"outer": map[string]any{"inner2": "value2"}},
+			expected: map[string]any{"outer": map[string]any{"inner1": "value1", "inner2": "value2"}},
 		},
 		{
 			name:     "deep merge",
-			a:        map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": "old"}}},
-			b:        map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"d": "new"}}},
-			expected: map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": "old", "d": "new"}}},
+			a:        map[string]any{"a": map[string]any{"b": map[string]any{"c": "old"}}},
+			b:        map[string]any{"a": map[string]any{"b": map[string]any{"d": "new"}}},
+			expected: map[string]any{"a": map[string]any{"b": map[string]any{"c": "old", "d": "new"}}},
 		},
 		{
 			name:     "empty maps",
-			a:        map[string]interface{}{},
-			b:        map[string]interface{}{"key": "value"},
-			expected: map[string]interface{}{"key": "value"},
+			a:        map[string]any{},
+			b:        map[string]any{"key": "value"},
+			expected: map[string]any{"key": "value"},
 		},
 		{
 			name:     "overwrite nested with simple",
-			a:        map[string]interface{}{"key": map[string]interface{}{"nested": "value"}},
-			b:        map[string]interface{}{"key": "simple"},
-			expected: map[string]interface{}{"key": "simple"},
+			a:        map[string]any{"key": map[string]any{"nested": "value"}},
+			b:        map[string]any{"key": "simple"},
+			expected: map[string]any{"key": "simple"},
 		},
 	}
 
@@ -271,7 +271,7 @@ func TestCoerceScalars(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
-		want  interface{}
+		want  any
 	}{
 		{name: "bool true lowercase", input: "true", want: true},
 		{name: "bool true uppercase", input: "True", want: true},
@@ -303,7 +303,7 @@ func TestCoerceScalars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CoerceScalars(map[string]interface{}{"value": tt.input})["value"]
+			got := CoerceScalars(map[string]any{"value": tt.input})["value"]
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("CoerceScalars(%q) = %#v (%T), want %#v (%T)", tt.input, got, got, tt.want, tt.want)
 			}
@@ -312,18 +312,18 @@ func TestCoerceScalars(t *testing.T) {
 }
 
 func TestCoerceScalarsNested(t *testing.T) {
-	input := map[string]interface{}{
-		"outer": map[string]interface{}{
+	input := map[string]any{
+		"outer": map[string]any{
 			"replicas": "3",
 			"enabled":  "false",
-			"list":     []interface{}{"true", "0.5", "123m", "~"},
+			"list":     []any{"true", "0.5", "123m", "~"},
 		},
 	}
-	want := map[string]interface{}{
-		"outer": map[string]interface{}{
+	want := map[string]any{
+		"outer": map[string]any{
 			"replicas": int64(3),
 			"enabled":  false,
-			"list":     []interface{}{true, float64(0.5), "123m", nil},
+			"list":     []any{true, float64(0.5), "123m", nil},
 		},
 	}
 
@@ -333,21 +333,21 @@ func TestCoerceScalarsNested(t *testing.T) {
 }
 
 func TestCoerceScalarsDoesNotMutateInput(t *testing.T) {
-	input := map[string]interface{}{
+	input := map[string]any{
 		"replicas": "3",
 		"enabled":  "false",
-		"nested": map[string]interface{}{
+		"nested": map[string]any{
 			"ratio": "0.5",
 		},
-		"list": []interface{}{"true", "1"},
+		"list": []any{"true", "1"},
 	}
-	original := map[string]interface{}{
+	original := map[string]any{
 		"replicas": "3",
 		"enabled":  "false",
-		"nested": map[string]interface{}{
+		"nested": map[string]any{
 			"ratio": "0.5",
 		},
-		"list": []interface{}{"true", "1"},
+		"list": []any{"true", "1"},
 	}
 
 	CoerceScalars(input)
@@ -361,17 +361,17 @@ func TestUnflattenSanitizedYAML(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    map[string]string
-		expected map[string]interface{}
+		expected map[string]any
 	}{
 		{
 			name:     "single flat key",
 			input:    map[string]string{"REPLICAS": "3"},
-			expected: map[string]interface{}{"replicas": "3"},
+			expected: map[string]any{"replicas": "3"},
 		},
 		{
 			name:     "nested key",
 			input:    map[string]string{"RESOURCES_REQUESTS_CPU": "123m"},
-			expected: map[string]interface{}{"resources": map[string]interface{}{"requests": map[string]interface{}{"cpu": "123m"}}},
+			expected: map[string]any{"resources": map[string]any{"requests": map[string]any{"cpu": "123m"}}},
 		},
 		{
 			name: "multiple nested keys",
@@ -379,9 +379,9 @@ func TestUnflattenSanitizedYAML(t *testing.T) {
 				"RESOURCES_REQUESTS_CPU":    "123m",
 				"RESOURCES_REQUESTS_MEMORY": "256Mi",
 			},
-			expected: map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+			expected: map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "123m",
 						"memory": "256Mi",
 					},
@@ -395,10 +395,10 @@ func TestUnflattenSanitizedYAML(t *testing.T) {
 				"RESOURCES_REQUESTS_CPU":    "123m",
 				"RESOURCES_REQUESTS_MEMORY": "256Mi",
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"replicas": "3",
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "123m",
 						"memory": "256Mi",
 					},
@@ -408,7 +408,7 @@ func TestUnflattenSanitizedYAML(t *testing.T) {
 		{
 			name:     "empty map",
 			input:    map[string]string{},
-			expected: map[string]interface{}{},
+			expected: map[string]any{},
 		},
 		{
 			name: "complex nested",
@@ -418,11 +418,11 @@ func TestUnflattenSanitizedYAML(t *testing.T) {
 				"DATABASE_CREDENTIALS_USERNAME": "admin",
 				"DATABASE_CREDENTIALS_PASSWORD": "secret",
 			},
-			expected: map[string]interface{}{
-				"database": map[string]interface{}{
+			expected: map[string]any{
+				"database": map[string]any{
 					"host": "localhost",
 					"port": "5432",
-					"credentials": map[string]interface{}{
+					"credentials": map[string]any{
 						"username": "admin",
 						"password": "secret",
 					},
@@ -435,8 +435,8 @@ func TestUnflattenSanitizedYAML(t *testing.T) {
 				"A":   "leaf",
 				"A_B": "nested",
 			},
-			expected: map[string]interface{}{
-				"a": map[string]interface{}{
+			expected: map[string]any{
+				"a": map[string]any{
 					"b": "nested",
 				},
 			},
@@ -461,17 +461,17 @@ func TestUnflattenUnSanitizedYAML(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    map[string]string
-		expected map[string]interface{}
+		expected map[string]any
 	}{
 		{
 			name:     "single flat key",
 			input:    map[string]string{"replicas": "3"},
-			expected: map[string]interface{}{"replicas": "3"},
+			expected: map[string]any{"replicas": "3"},
 		},
 		{
 			name:     "nested key",
 			input:    map[string]string{"resources.requests.cpu": "123m"},
-			expected: map[string]interface{}{"resources": map[string]interface{}{"requests": map[string]interface{}{"cpu": "123m"}}},
+			expected: map[string]any{"resources": map[string]any{"requests": map[string]any{"cpu": "123m"}}},
 		},
 		{
 			name: "multiple nested keys",
@@ -479,9 +479,9 @@ func TestUnflattenUnSanitizedYAML(t *testing.T) {
 				"resources.requests.cpu":    "123m",
 				"resources.requests.memory": "256Mi",
 			},
-			expected: map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+			expected: map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "123m",
 						"memory": "256Mi",
 					},
@@ -495,10 +495,10 @@ func TestUnflattenUnSanitizedYAML(t *testing.T) {
 				"resources.requests.cpu":    "123m",
 				"resources.requests.memory": "256Mi",
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"replicas": "3",
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "123m",
 						"memory": "256Mi",
 					},
@@ -508,7 +508,7 @@ func TestUnflattenUnSanitizedYAML(t *testing.T) {
 		{
 			name:     "empty map",
 			input:    map[string]string{},
-			expected: map[string]interface{}{},
+			expected: map[string]any{},
 		},
 		{
 			name: "complex nested",
@@ -518,11 +518,11 @@ func TestUnflattenUnSanitizedYAML(t *testing.T) {
 				"database.credentials.username": "admin",
 				"database.credentials.password": "secret",
 			},
-			expected: map[string]interface{}{
-				"database": map[string]interface{}{
+			expected: map[string]any{
+				"database": map[string]any{
 					"host": "localhost",
 					"port": "5432",
-					"credentials": map[string]interface{}{
+					"credentials": map[string]any{
 						"username": "admin",
 						"password": "secret",
 					},
@@ -535,8 +535,8 @@ func TestUnflattenUnSanitizedYAML(t *testing.T) {
 				"a":   "leaf",
 				"a.b": "nested",
 			},
-			expected: map[string]interface{}{
-				"a": map[string]interface{}{
+			expected: map[string]any{
+				"a": map[string]any{
 					"b": "nested",
 				},
 			},
@@ -558,9 +558,9 @@ func TestUnflattenUnSanitizedYAML(t *testing.T) {
 }
 
 func TestFlattenUnflattenRoundTrip(t *testing.T) {
-	input := map[string]interface{}{
-		"resources": map[string]interface{}{
-			"requests": map[string]interface{}{
+	input := map[string]any{
+		"resources": map[string]any{
+			"requests": map[string]any{
 				"cpu":    "123m",
 				"memory": "256Mi",
 			},
@@ -580,31 +580,31 @@ func TestUnflattenYAMLDeterministic(t *testing.T) {
 		name      string
 		input     map[string]string
 		sanitized bool
-		expected  map[string]interface{}
+		expected  map[string]any
 	}{
 		{
 			name:      "conflict leaf overwritten by map unsanitized",
 			input:     map[string]string{"a": "leaf", "a.b": "nested"},
 			sanitized: false,
-			expected: map[string]interface{}{
-				"a": map[string]interface{}{"b": "nested"},
+			expected: map[string]any{
+				"a": map[string]any{"b": "nested"},
 			},
 		},
 		{
 			name:      "conflict leaf overwritten by map sanitized",
 			input:     map[string]string{"A": "leaf", "A_B": "nested"},
 			sanitized: true,
-			expected: map[string]interface{}{
-				"a": map[string]interface{}{"b": "nested"},
+			expected: map[string]any{
+				"a": map[string]any{"b": "nested"},
 			},
 		},
 		{
 			name:      "deeper path overwrites intermediate leaf",
 			input:     map[string]string{"a.b": "leaf", "a.b.c": "deep"},
 			sanitized: false,
-			expected: map[string]interface{}{
-				"a": map[string]interface{}{
-					"b": map[string]interface{}{"c": "deep"},
+			expected: map[string]any{
+				"a": map[string]any{
+					"b": map[string]any{"c": "deep"},
 				},
 			},
 		},
@@ -617,10 +617,10 @@ func TestUnflattenYAMLDeterministic(t *testing.T) {
 				"p.q.r": "deep",
 			},
 			sanitized: false,
-			expected: map[string]interface{}{
-				"x": map[string]interface{}{"y": "nested"},
-				"p": map[string]interface{}{
-					"q": map[string]interface{}{"r": "deep"},
+			expected: map[string]any{
+				"x": map[string]any{"y": "nested"},
+				"p": map[string]any{
+					"q": map[string]any{"r": "deep"},
 				},
 			},
 		},
@@ -628,7 +628,7 @@ func TestUnflattenYAMLDeterministic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for i := 0; i < 1000; i++ {
+			for i := range 1000 {
 				result := UnflattenYAML(tt.input, tt.sanitized)
 				compareMaps(t, result, tt.expected)
 				if t.Failed() {
@@ -643,13 +643,13 @@ func TestUnflattenYAMLArrays(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    map[string]string
-		expected map[string]interface{}
+		expected map[string]any
 	}{
 		{
 			name:  "scalar list",
 			input: map[string]string{"env[0]": "A", "env[1]": "B"},
-			expected: map[string]interface{}{
-				"env": []interface{}{"A", "B"},
+			expected: map[string]any{
+				"env": []any{"A", "B"},
 			},
 		},
 		{
@@ -659,10 +659,10 @@ func TestUnflattenYAMLArrays(t *testing.T) {
 				"ports[0].port": "80",
 				"ports[1].name": "admin",
 			},
-			expected: map[string]interface{}{
-				"ports": []interface{}{
-					map[string]interface{}{"name": "http", "port": "80"},
-					map[string]interface{}{"name": "admin"},
+			expected: map[string]any{
+				"ports": []any{
+					map[string]any{"name": "http", "port": "80"},
+					map[string]any{"name": "admin"},
 				},
 			},
 		},
@@ -673,39 +673,39 @@ func TestUnflattenYAMLArrays(t *testing.T) {
 				"matrix[0][1]": "b",
 				"matrix[1][0]": "c",
 			},
-			expected: map[string]interface{}{
-				"matrix": []interface{}{
-					[]interface{}{"a", "b"},
-					[]interface{}{"c"},
+			expected: map[string]any{
+				"matrix": []any{
+					[]any{"a", "b"},
+					[]any{"c"},
 				},
 			},
 		},
 		{
 			name:  "leaf conflict list wins",
 			input: map[string]string{"env": "leaf", "env[0]": "A"},
-			expected: map[string]interface{}{
-				"env": []interface{}{"A"},
+			expected: map[string]any{
+				"env": []any{"A"},
 			},
 		},
 		{
 			name:  "sparse list pads nil",
 			input: map[string]string{"env[1]": "B"},
-			expected: map[string]interface{}{
-				"env": []interface{}{nil, "B"},
+			expected: map[string]any{
+				"env": []any{nil, "B"},
 			},
 		},
 		{
 			name:  "mixed with normal maps",
 			input: map[string]string{"image.tag": "v1", "env[0]": "A"},
-			expected: map[string]interface{}{
-				"image": map[string]interface{}{"tag": "v1"},
-				"env":   []interface{}{"A"},
+			expected: map[string]any{
+				"image": map[string]any{"tag": "v1"},
+				"env":   []any{"A"},
 			},
 		},
 		{
 			name:  "invalid array syntax stays literal",
 			input: map[string]string{"foo[bar]": "x", "foo[0]x": "y"},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"foo[bar]": "x",
 				"foo[0]x":  "y",
 			},
@@ -734,19 +734,19 @@ func TestUnflattenYAMLArraysDeterministic(t *testing.T) {
 		"env[0]":        "A",
 		"env[1]":        "B",
 	}
-	expected := map[string]interface{}{
-		"ports": []interface{}{
-			map[string]interface{}{"name": "http", "port": "80"},
-			map[string]interface{}{"name": "admin"},
+	expected := map[string]any{
+		"ports": []any{
+			map[string]any{"name": "http", "port": "80"},
+			map[string]any{"name": "admin"},
 		},
-		"matrix": []interface{}{
-			[]interface{}{"a", "b"},
-			[]interface{}{"c"},
+		"matrix": []any{
+			[]any{"a", "b"},
+			[]any{"c"},
 		},
-		"env": []interface{}{"A", "B"},
+		"env": []any{"A", "B"},
 	}
 
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		result := UnflattenYAML(input, false)
 		if !reflect.DeepEqual(result, expected) {
 			t.Fatalf("non-deterministic result on iteration %d: got %#v", i, result)
@@ -754,8 +754,8 @@ func TestUnflattenYAMLArraysDeterministic(t *testing.T) {
 	}
 }
 
-func saveYAMLTestData() map[string]interface{} {
-	return map[string]interface{}{
+func saveYAMLTestData() map[string]any {
+	return map[string]any{
 		"password": "secret",
 		"replicas": "3",
 	}
@@ -890,7 +890,7 @@ func TestSaveYAMLLeavesNoTempFile(t *testing.T) {
 }
 
 // Helper function to compare maps recursively
-func compareMaps(t *testing.T, result, expected map[string]interface{}) {
+func compareMaps(t *testing.T, result, expected map[string]any) {
 	if len(result) != len(expected) {
 		t.Errorf("MergeYAML() length = %d, want %d", len(result), len(expected))
 		return
@@ -901,8 +901,8 @@ func compareMaps(t *testing.T, result, expected map[string]interface{}) {
 			t.Errorf("MergeYAML() missing key %s", k)
 		} else {
 			switch ev := expectedVal.(type) {
-			case map[string]interface{}:
-				if rv, ok := resultVal.(map[string]interface{}); ok {
+			case map[string]any:
+				if rv, ok := resultVal.(map[string]any); ok {
 					compareMaps(t, rv, ev)
 				} else {
 					t.Errorf("MergeYAML()[%s] type mismatch: expected map, got %T", k, resultVal)

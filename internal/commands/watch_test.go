@@ -47,9 +47,9 @@ func fakeRefresh(calls *[]refreshCall) refreshApplicationFunc {
 func resourceEvent(kind, name string) kubernetes.Event {
 	return kubernetes.Event{
 		Obj: &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"kind": kind,
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name": name,
 				},
 			},
@@ -58,22 +58,22 @@ func resourceEvent(kind, name string) kubernetes.Event {
 	}
 }
 
-func applicationEvent(envs ...map[string]interface{}) kubernetes.Event {
-	envSlice := make([]interface{}, 0, len(envs))
+func applicationEvent(envs ...map[string]any) kubernetes.Event {
+	envSlice := make([]any, 0, len(envs))
 	for _, env := range envs {
 		envSlice = append(envSlice, env)
 	}
 	return kubernetes.Event{
 		Resource: applicationResource,
 		Obj: &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"kind": "Application",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name": "app",
 				},
-				"spec": map[string]interface{}{
-					"source": map[string]interface{}{
-						"plugin": map[string]interface{}{
+				"spec": map[string]any{
+					"source": map[string]any{
+						"plugin": map[string]any{
 							"env": envSlice,
 						},
 					},
@@ -227,8 +227,8 @@ func TestGetKeysFromObjsSkipsInvalidReferences(t *testing.T) {
 }
 
 func TestGetApplicationResourcesFromEnvTrimsWhitespace(t *testing.T) {
-	envs := []interface{}{
-		map[string]interface{}{"name": "value-configs", "value": "cm1, cm2"},
+	envs := []any{
+		map[string]any{"name": "value-configs", "value": "cm1, cm2"},
 	}
 
 	got := getApplicationResourcesFromEnv(envs, "default")
@@ -244,10 +244,10 @@ func TestGetApplicationResourcesFromEnvTrimsWhitespace(t *testing.T) {
 }
 
 func TestGetApplicationResourcesFromParametersTrimsWhitespace(t *testing.T) {
-	parameters := []interface{}{
-		map[string]interface{}{
+	parameters := []any{
+		map[string]any{
 			"name":  "valueConfigs",
-			"array": []interface{}{" cm1 ", "cm2"},
+			"array": []any{" cm1 ", "cm2"},
 		},
 	}
 
@@ -265,20 +265,20 @@ func TestGetApplicationResourcesFromParametersTrimsWhitespace(t *testing.T) {
 
 func TestGetApplicationResourcesUsesDestinationNamespace(t *testing.T) {
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"kind": "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "app",
 				"namespace": "argocd",
 			},
-			"spec": map[string]interface{}{
-				"destination": map[string]interface{}{
+			"spec": map[string]any{
+				"destination": map[string]any{
 					"namespace": "default",
 				},
-				"source": map[string]interface{}{
-					"plugin": map[string]interface{}{
-						"env": []interface{}{
-							map[string]interface{}{"name": "value-configs", "value": "cm"},
+				"source": map[string]any{
+					"plugin": map[string]any{
+						"env": []any{
+							map[string]any{"name": "value-configs", "value": "cm"},
 						},
 					},
 				},
@@ -295,16 +295,16 @@ func TestGetApplicationResourcesUsesDestinationNamespace(t *testing.T) {
 
 func TestGetApplicationResourcesWithoutDestinationNamespaceUsesDefault(t *testing.T) {
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"kind": "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "app",
 			},
-			"spec": map[string]interface{}{
-				"source": map[string]interface{}{
-					"plugin": map[string]interface{}{
-						"env": []interface{}{
-							map[string]interface{}{"name": "value-configs", "value": "cm"},
+			"spec": map[string]any{
+				"source": map[string]any{
+					"plugin": map[string]any{
+						"env": []any{
+							map[string]any{"name": "value-configs", "value": "cm"},
 						},
 					},
 				},
@@ -321,28 +321,28 @@ func TestGetApplicationResourcesWithoutDestinationNamespaceUsesDefault(t *testin
 
 func TestGetApplicationResourcesSupportsMultipleSources(t *testing.T) {
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"kind": "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "app",
 				"namespace": "argocd",
 			},
-			"spec": map[string]interface{}{
-				"destination": map[string]interface{}{
+			"spec": map[string]any{
+				"destination": map[string]any{
 					"namespace": "workloads",
 				},
-				"sources": []interface{}{
-					map[string]interface{}{
-						"plugin": map[string]interface{}{
-							"env": []interface{}{
-								map[string]interface{}{"name": "value-configs", "value": "values"},
+				"sources": []any{
+					map[string]any{
+						"plugin": map[string]any{
+							"env": []any{
+								map[string]any{"name": "value-configs", "value": "values"},
 							},
 						},
 					},
-					map[string]interface{}{
-						"plugin": map[string]interface{}{
-							"env": []interface{}{
-								map[string]interface{}{"name": "env-secrets", "value": "settings"},
+					map[string]any{
+						"plugin": map[string]any{
+							"env": []any{
+								map[string]any{"name": "env-secrets", "value": "settings"},
 							},
 						},
 					},
@@ -365,28 +365,28 @@ func TestGetApplicationResourcesSupportsMultipleSources(t *testing.T) {
 
 func TestGetApplicationResourcesSupportsSourceAndSources(t *testing.T) {
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"kind": "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "app",
 				"namespace": "argocd",
 			},
-			"spec": map[string]interface{}{
-				"destination": map[string]interface{}{
+			"spec": map[string]any{
+				"destination": map[string]any{
 					"namespace": "workloads",
 				},
-				"source": map[string]interface{}{
-					"plugin": map[string]interface{}{
-						"env": []interface{}{
-							map[string]interface{}{"name": "value-configs", "value": "single"},
+				"source": map[string]any{
+					"plugin": map[string]any{
+						"env": []any{
+							map[string]any{"name": "value-configs", "value": "single"},
 						},
 					},
 				},
-				"sources": []interface{}{
-					map[string]interface{}{
-						"plugin": map[string]interface{}{
-							"env": []interface{}{
-								map[string]interface{}{"name": "env-secrets", "value": "multi"},
+				"sources": []any{
+					map[string]any{
+						"plugin": map[string]any{
+							"env": []any{
+								map[string]any{"name": "env-secrets", "value": "multi"},
 							},
 						},
 					},
@@ -409,31 +409,31 @@ func TestGetApplicationResourcesSupportsSourceAndSources(t *testing.T) {
 
 func TestGetApplicationResourcesMultiSourceWithParameters(t *testing.T) {
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"kind": "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "app",
 				"namespace": "argocd",
 			},
-			"spec": map[string]interface{}{
-				"destination": map[string]interface{}{
+			"spec": map[string]any{
+				"destination": map[string]any{
 					"namespace": "workloads",
 				},
-				"sources": []interface{}{
-					map[string]interface{}{
-						"plugin": map[string]interface{}{
-							"parameters": []interface{}{
-								map[string]interface{}{
+				"sources": []any{
+					map[string]any{
+						"plugin": map[string]any{
+							"parameters": []any{
+								map[string]any{
 									"name":  "valueConfigs",
-									"array": []interface{}{"cm-param"},
+									"array": []any{"cm-param"},
 								},
 							},
 						},
 					},
-					map[string]interface{}{
-						"plugin": map[string]interface{}{
-							"env": []interface{}{
-								map[string]interface{}{"name": "env-secrets", "value": "settings"},
+					map[string]any{
+						"plugin": map[string]any{
+							"env": []any{
+								map[string]any{"name": "env-secrets", "value": "settings"},
 							},
 						},
 					},
@@ -456,28 +456,28 @@ func TestGetApplicationResourcesMultiSourceWithParameters(t *testing.T) {
 
 func TestGetApplicationResourcesMultiSourceWithQualifiedName(t *testing.T) {
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"kind": "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "app",
 				"namespace": "argocd",
 			},
-			"spec": map[string]interface{}{
-				"destination": map[string]interface{}{
+			"spec": map[string]any{
+				"destination": map[string]any{
 					"namespace": "workloads",
 				},
-				"sources": []interface{}{
-					map[string]interface{}{
-						"plugin": map[string]interface{}{
-							"env": []interface{}{
-								map[string]interface{}{"name": "value-configs", "value": "other-ns/cm"},
+				"sources": []any{
+					map[string]any{
+						"plugin": map[string]any{
+							"env": []any{
+								map[string]any{"name": "value-configs", "value": "other-ns/cm"},
 							},
 						},
 					},
-					map[string]interface{}{
-						"plugin": map[string]interface{}{
-							"env": []interface{}{
-								map[string]interface{}{"name": "env-secrets", "value": "other-ns/secret"},
+					map[string]any{
+						"plugin": map[string]any{
+							"env": []any{
+								map[string]any{"name": "env-secrets", "value": "other-ns/secret"},
 							},
 						},
 					},
@@ -506,7 +506,7 @@ func TestUpdateResourcesRemovesDeletedApplication(t *testing.T) {
 	var calls []refreshCall
 	handler := updateResources(false, fakeRefresh(&calls), applicationResources)
 
-	event := applicationEvent(map[string]interface{}{"name": "value-configs", "value": "cm"})
+	event := applicationEvent(map[string]any{"name": "value-configs", "value": "cm"})
 	event.EventType = string(watch.Deleted)
 	handler(map[string]kubernetes.Event{
 		"applications/argocd/app1": event,
@@ -527,7 +527,7 @@ func TestUpdateResourcesApplicationEventUpdatesResourceMap(t *testing.T) {
 	handler := updateResources(false, fakeRefresh(&calls), applicationResources)
 	handler(map[string]kubernetes.Event{
 		"applications/argocd/app1": applicationEvent(
-			map[string]interface{}{"name": "values-configs", "value": "cm1,cm2"},
+			map[string]any{"name": "values-configs", "value": "cm1,cm2"},
 		),
 	})
 
@@ -560,7 +560,7 @@ func TestUpdateResourcesSkipsNewApplicationInSameBatch(t *testing.T) {
 		// A new Application referencing the same ConfigMap arrives in the same batch
 		// as the ConfigMap change. It must not be refreshed during initial seeding.
 		"applications/argocd/new": applicationEvent(
-			map[string]interface{}{"name": "values-configs", "value": "cm"},
+			map[string]any{"name": "values-configs", "value": "cm"},
 		),
 		"configmaps/default/cm": resourceEvent("ConfigMap", "cm"),
 	})

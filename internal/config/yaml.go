@@ -3,6 +3,7 @@ package config
 import (
 	"argo-values/internal/logger"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -29,20 +30,20 @@ var (
 // Empty strings, strings with leading zeros ("0123"), hex/underscore numbers
 // ("0x10", "1_000"), timestamps, quoted strings and non-scalar values
 // (maps/sequences encoded as strings) are kept unchanged.
-func CoerceScalars(data map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{}, len(data))
+func CoerceScalars(data map[string]any) map[string]any {
+	result := make(map[string]any, len(data))
 	for key, value := range data {
 		result[key] = coerceScalarValue(value)
 	}
 	return result
 }
 
-func coerceScalarValue(value interface{}) interface{} {
+func coerceScalarValue(value any) any {
 	switch v := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return CoerceScalars(v)
-	case []interface{}:
-		list := make([]interface{}, len(v))
+	case []any:
+		list := make([]any, len(v))
 		for i, item := range v {
 			list[i] = coerceScalarValue(item)
 		}
@@ -54,7 +55,7 @@ func coerceScalarValue(value interface{}) interface{} {
 	}
 }
 
-func coerceScalarString(value string) interface{} {
+func coerceScalarString(value string) any {
 	if value == "" {
 		return value
 	}
@@ -95,24 +96,24 @@ type pathStep struct {
 // preserved and the original value is kept as a string. A warning is logged if
 // the value looks like structured YAML but cannot be parsed, to surface silent
 // misconfiguration without warning for plain scalars such as URLs.
-func ParseYAML(key, value string) map[string]interface{} {
-	var result map[string]interface{}
+func ParseYAML(key, value string) map[string]any {
+	var result map[string]any
 	if err := yaml.Unmarshal([]byte(value), &result); err != nil {
 		if looksLikeStructuredYAML(value) {
 			logger.Warnf("failed to parse value for key %q as YAML, using it as a string: %v", key, err)
 		}
-		return map[string]interface{}{key: value}
+		return map[string]any{key: value}
 	}
 	if result == nil {
-		return map[string]interface{}{key: value}
+		return map[string]any{key: value}
 	}
 	return result
 }
 
 // ParseEnv treats key as an environment variable name and value as its literal
 // string value. Unlike ParseYAML, the value is never interpreted as YAML.
-func ParseEnv(key, value string) map[string]interface{} {
-	return map[string]interface{}{key: value}
+func ParseEnv(key, value string) map[string]any {
+	return map[string]any{key: value}
 }
 
 // looksLikeStructuredYAML reports whether value appears to contain structured
@@ -134,12 +135,12 @@ func UnSanitizeKey(key string) string {
 	return strings.ReplaceAll(strings.ToLower(key), "_", ".")
 }
 
-func FlattenYAML(data map[string]interface{}, prefix string, result map[string]string) {
+func FlattenYAML(data map[string]any, prefix string, result map[string]string) {
 	for key, value := range data {
 		newKey := prefix + SanitizeKey(key)
 
 		switch v := value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			// If the value is a nested map, recurse.
 			FlattenYAML(v, newKey+"_", result)
 		case string, int, bool, float64:
@@ -165,7 +166,7 @@ func FlattenYAML(data map[string]interface{}, prefix string, result map[string]s
 // original key. This makes deeper paths win over conflicting shallower values: a leaf is replaced
 // by a map or list when a deeper path requires it (e.g. "a.b" overwrites the leaf "a", "env[0]"
 // overwrites the leaf "env"), independent of map iteration order.
-func UnflattenYAML(flat map[string]string, sanitized bool) map[string]interface{} {
+func UnflattenYAML(flat map[string]string, sanitized bool) map[string]any {
 	type entry struct {
 		originalKey string
 		key         string
@@ -198,10 +199,10 @@ func UnflattenYAML(flat map[string]string, sanitized bool) map[string]interface{
 		return entries[i].originalKey < entries[j].originalKey
 	})
 
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 
 	for _, e := range entries {
-		result = setPath(result, e.steps, e.value).(map[string]interface{})
+		result = setPath(result, e.steps, e.value).(map[string]any)
 	}
 
 	return result
@@ -243,14 +244,14 @@ func parseSection(section string) []pathStep {
 // Intermediate values are created as maps or slices, replacing an existing leaf
 // or a conflicting container type (the deeper path wins). Missing slice entries
 // up to the requested index are padded with nil.
-func setPath(node interface{}, steps []pathStep, value string) interface{} {
+func setPath(node any, steps []pathStep, value string) any {
 	if len(steps) == 0 {
 		return value
 	}
 
 	step := steps[0]
 	if step.isIndex {
-		list, ok := node.([]interface{})
+		list, ok := node.([]any)
 		if !ok {
 			list = nil
 		}
@@ -261,23 +262,21 @@ func setPath(node interface{}, steps []pathStep, value string) interface{} {
 		return list
 	}
 
-	nestedMap, ok := node.(map[string]interface{})
+	nestedMap, ok := node.(map[string]any)
 	if !ok {
-		nestedMap = make(map[string]interface{})
+		nestedMap = make(map[string]any)
 	}
 	nestedMap[step.key] = setPath(nestedMap[step.key], steps[1:], value)
 	return nestedMap
 }
 
-func MergeYAML(a, b map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{}, len(a))
-	for k, v := range a {
-		result[k] = v
-	}
+func MergeYAML(a, b map[string]any) map[string]any {
+	result := make(map[string]any, len(a))
+	maps.Copy(result, a)
 	for k, v := range b {
-		if v, ok := v.(map[string]interface{}); ok {
+		if v, ok := v.(map[string]any); ok {
 			if bv, ok := result[k]; ok {
-				if bv, ok := bv.(map[string]interface{}); ok {
+				if bv, ok := bv.(map[string]any); ok {
 					result[k] = MergeYAML(bv, v)
 					continue
 				}
@@ -288,7 +287,7 @@ func MergeYAML(a, b map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-func SaveYAML(yamlData map[string]interface{}, file string) error {
+func SaveYAML(yamlData map[string]any, file string) error {
 	rawYaml, err := yaml.Marshal(&yamlData)
 	if err != nil {
 		return err

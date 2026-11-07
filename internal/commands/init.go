@@ -99,7 +99,7 @@ overwriting earlier ones for the same keys.`,
 	},
 }
 
-func generateValues(client *kubernetes.Client, appParameters *config.AppParameters) (map[string]interface{}, map[string]string, error) {
+func generateValues(client *kubernetes.Client, appParameters *config.AppParameters) (map[string]any, map[string]string, error) {
 	defaultNamespace := config.GetStringFromEnv("ARGOCD_APP_NAMESPACE", "default")
 
 	var configMaps = map[string]*v1.ConfigMap{}
@@ -154,8 +154,8 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, secrets map[string]*v1.Secret, secretNames []string, parse func(key, value string) map[string]interface{}) (map[string]interface{}, error) {
-	var result map[string]interface{}
+func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, secrets map[string]*v1.Secret, secretNames []string, parse func(key, value string) map[string]any) (map[string]any, error) {
+	var result map[string]any
 
 	for _, name := range configMapNames {
 		configMap := configMaps[name]
@@ -171,7 +171,7 @@ func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, sec
 	for _, name := range secretNames {
 		secret := secrets[name]
 		if secret == nil {
-			return nil, fmt.Errorf("Secret %q was not loaded", name)
+			return nil, fmt.Errorf("secret %q was not loaded", name)
 		}
 		data := secret.Data
 		for _, key := range sortedKeys(data) {

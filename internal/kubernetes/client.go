@@ -83,7 +83,7 @@ func (k *Client) RefreshApplication(name, namespace string) error {
 	defer cancel()
 
 	var lastErr error
-	for attempt := 0; attempt < refreshAttempts; attempt++ {
+	for attempt := range refreshAttempts {
 		_, err := k.client.Resource(appResource).Namespace(namespace).Patch(
 			ctx,
 			name,
@@ -101,10 +101,7 @@ func (k *Client) RefreshApplication(name, namespace string) error {
 		if attempt == refreshAttempts-1 {
 			break
 		}
-		delay := refreshBaseBackoff << attempt
-		if delay > refreshMaxBackoff {
-			delay = refreshMaxBackoff
-		}
+		delay := min(refreshBaseBackoff<<attempt, refreshMaxBackoff)
 		logger.Debugf("Retrying refresh for application %s/%s after %v (attempt %d/%d)", namespace, name, err, attempt+1, refreshAttempts)
 		select {
 		case <-ctx.Done():

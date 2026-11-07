@@ -61,71 +61,83 @@ func getLogLevel(level string) logrus.Level {
 }
 
 // SetLevel sets the log level
+//
+//goland:noinspection GoUnusedExportedFunction
 func SetLevel(level logrus.Level) {
 	Log.SetLevel(level)
 }
 
 // SetOutput sets the output destination
+//
+//goland:noinspection GoUnusedExportedFunction
 func SetOutput(w io.Writer) {
 	Log.Out = w
 }
 
 // Debug logs at debug level
-func Debug(args ...interface{}) {
+func Debug(args ...any) {
 	Log.Debug(args...)
 }
 
 // Info logs at info level
-func Info(args ...interface{}) {
+func Info(args ...any) {
 	Log.Info(args...)
 }
 
 // Warn logs at the warning level
-func Warn(args ...interface{}) {
+//
+//goland:noinspection GoUnusedExportedFunction
+func Warn(args ...any) {
 	Log.Warn(args...)
 }
 
 // Error logs at error level
-func Error(args ...interface{}) {
+func Error(args ...any) {
 	Log.Error(args...)
 }
 
 // Fatal logs at fatal level and exits
-func Fatal(args ...interface{}) {
+func Fatal(args ...any) {
 	Log.Fatal(args...)
 }
 
 // Debugf logs at debug level with formatting
-func Debugf(format string, args ...interface{}) {
+func Debugf(format string, args ...any) {
 	Log.Debugf(format, args...)
 }
 
 // Infof logs at info level with formatting
-func Infof(format string, args ...interface{}) {
+//
+//goland:noinspection GoUnusedExportedFunction
+func Infof(format string, args ...any) {
 	Log.Infof(format, args...)
 }
 
 // Warnf logs at the warning level with formatting
-func Warnf(format string, args ...interface{}) {
+func Warnf(format string, args ...any) {
 	Log.Warnf(format, args...)
 }
 
 // Errorf logs at error level with formatting
-func Errorf(format string, args ...interface{}) {
+func Errorf(format string, args ...any) {
 	Log.Errorf(format, args...)
 }
 
 // Fatalf logs at the fatal level with formatting and exits
-func Fatalf(format string, args ...interface{}) {
+func Fatalf(format string, args ...any) {
 	Log.Fatalf(format, args...)
 }
 
 // Panic logs at panic level
-func Panic(args ...interface{}) {
+//
+//goland:noinspection GoUnusedExportedFunction
+func Panic(args ...any) {
 	Log.Panic(args...)
 }
 
 // Panicf logs at panic level with formatting
-func Panicf(format string, args ...interface{}) {
+//
+//goland:noinspection GoUnusedExportedFunction
+func Panicf(format string, args ...any) {
 	Log.Panicf(format, args...)
 }

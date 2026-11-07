@@ -68,5 +68,5 @@ func writeDiscoveryResult(w io.Writer, supported bool) {
 	if !supported {
 		return
 	}
-	fmt.Fprintln(w, discoveryToken)
+	_, _ = fmt.Fprintln(w, discoveryToken)
 }

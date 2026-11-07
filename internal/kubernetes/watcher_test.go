@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"testing"
@@ -18,7 +19,7 @@ import (
 )
 
 func testObject(name, resourceVersion string) unstructured.Unstructured {
-	obj := unstructured.Unstructured{Object: map[string]interface{}{}}
+	obj := unstructured.Unstructured{Object: map[string]any{}}
 	obj.SetName(name)
 	obj.SetResourceVersion(resourceVersion)
 	return obj
@@ -29,9 +30,7 @@ func pendingEventsSnapshot(w *ResourceWatcher) map[string]Event {
 	defer w.eventMu.Unlock()
 
 	snapshot := make(map[string]Event, len(w.pendingEvents))
-	for key, event := range w.pendingEvents {
-		snapshot[key] = event
-	}
+	maps.Copy(snapshot, w.pendingEvents)
 	return snapshot
 }
 
@@ -98,10 +97,10 @@ func TestResourceWatcherDoesNotSeedConfigMaps(t *testing.T) {
 	}
 
 	configMap := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "v1",
 			"kind":       "ConfigMap",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "cm",
 				"namespace": "argocd",
 			},
@@ -383,18 +382,18 @@ func TestResourceWatcherSeedsExistingApplications(t *testing.T) {
 	}
 
 	appObj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "app1",
 				"namespace": "argocd",
 			},
-			"spec": map[string]interface{}{
-				"source": map[string]interface{}{
-					"plugin": map[string]interface{}{
-						"env": []interface{}{
-							map[string]interface{}{"name": "value-configs", "value": "cm"},
+			"spec": map[string]any{
+				"source": map[string]any{
+					"plugin": map[string]any{
+						"env": []any{
+							map[string]any{"name": "value-configs", "value": "cm"},
 						},
 					},
 				},
@@ -449,7 +448,7 @@ func TestResourceWatcherSeedsExistingApplications(t *testing.T) {
 	if err != nil || !foundEnvs || len(envs) != 1 {
 		t.Fatalf("expected one plugin env entry, got %v (found=%v, err=%v)", envs, foundEnvs, err)
 	}
-	env, ok := envs[0].(map[string]interface{})
+	env, ok := envs[0].(map[string]any)
 	if !ok || env["value"] != "cm" {
 		t.Errorf("expected env value %q, got %v", "cm", envs[0])
 	}
@@ -494,10 +493,10 @@ func TestResourceWatcherSurvivesWatchErrors(t *testing.T) {
 	}
 
 	appObj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "app1",
 				"namespace": "argocd",
 			},
