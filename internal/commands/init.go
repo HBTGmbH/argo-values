@@ -173,18 +173,23 @@ func prepareApplicationFiles(directory string, ignorePatterns *helm.IgnoreFile, 
 			return err
 		}
 
+		// Check whether the file or directory should be ignored. The base
+		// directory itself resolves to "." and is never ignored.
+		if ignorePatterns.ShouldIgnore(path, directory, file.IsDir()) {
+			if file.IsDir() {
+				logger.Debugf("Ignore directory %s", path)
+				return filepath.SkipDir
+			}
+			logger.Debugf("Ignore file %s", path)
+			return nil
+		}
+
 		if file.IsDir() {
 			return nil
 		}
 
 		if !file.Mode().IsRegular() {
 			logger.Debugf("Skip non-regular file %s", path)
-			return nil
-		}
-
-		// Check if the file should be ignored
-		if ignorePatterns.ShouldIgnore(path, directory) {
-			logger.Debugf("Ignore file %s", path)
 			return nil
 		}
 

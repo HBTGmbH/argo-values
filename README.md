@@ -11,7 +11,7 @@ from Kubernetes ConfigMaps and Secrets.
 - **Environment Variable Substitution**: Replace variable placeholders in application files with actual values
 - **Automatic Refresh**: Watch for ConfigMap/Secret changes and trigger application refreshes
 - **Helm Integration**: Full compatibility with Helm charts and templating
-- **Selective Processing**: Respect `.helmignore` patterns
+- **Selective Processing**: Respect `.helmignore` patterns using Helm-compatible semantics (including path and directory rules)
 
 ## Scope and Positioning
 

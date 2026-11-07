@@ -146,6 +146,94 @@ func TestPrepareApplicationFilesRespectsHelmIgnore(t *testing.T) {
 	}
 }
 
+func TestPrepareApplicationFilesHelmIgnorePathPattern(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, ".helmignore"), "templates/*.yaml\n")
+	files := []string{
+		"templates/a.yaml",
+		"templates/sub/b.yaml",
+		"templates/sub/deep/c.yaml",
+	}
+	for _, rel := range files {
+		writeTestFile(t, filepath.Join(root, rel), "${A}")
+	}
+
+	ignorePatterns, err := helm.ReadHelmIgnore(root)
+	if err != nil {
+		t.Fatalf("failed to read .helmignore: %v", err)
+	}
+
+	env := map[string]string{"A": "done"}
+	if err := prepareApplicationFiles(root, ignorePatterns, env, false); err != nil {
+		t.Fatalf("prepareApplicationFiles returned error: %v", err)
+	}
+
+	if got := readTestFile(t, filepath.Join(root, "templates/a.yaml")); got != "${A}" {
+		t.Errorf("templates/a.yaml = %q, want unchanged %q", got, "${A}")
+	}
+	for _, rel := range files[1:] {
+		if got := readTestFile(t, filepath.Join(root, rel)); got != "done" {
+			t.Errorf("%s = %q, want %q", rel, got, "done")
+		}
+	}
+}
+
+func TestPrepareApplicationFilesHelmIgnoreDirectoryPattern(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, ".helmignore"), "foo/\n")
+	files := []string{
+		"foo/a.txt",
+		"sub/foo/b.txt",
+	}
+	for _, rel := range files {
+		writeTestFile(t, filepath.Join(root, rel), "${A}")
+	}
+
+	ignorePatterns, err := helm.ReadHelmIgnore(root)
+	if err != nil {
+		t.Fatalf("failed to read .helmignore: %v", err)
+	}
+
+	env := map[string]string{"A": "done"}
+	if err := prepareApplicationFiles(root, ignorePatterns, env, false); err != nil {
+		t.Fatalf("prepareApplicationFiles returned error: %v", err)
+	}
+
+	for _, rel := range files {
+		if got := readTestFile(t, filepath.Join(root, rel)); got != "${A}" {
+			t.Errorf("%s = %q, want unchanged %q (directory must be skipped)", rel, got, "${A}")
+		}
+	}
+}
+
+func TestPrepareApplicationFilesHelmIgnoreBasenamePattern(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, ".helmignore"), "foo.txt\n")
+	files := []string{
+		"foo.txt",
+		"sub/foo.txt",
+	}
+	for _, rel := range files {
+		writeTestFile(t, filepath.Join(root, rel), "${A}")
+	}
+
+	ignorePatterns, err := helm.ReadHelmIgnore(root)
+	if err != nil {
+		t.Fatalf("failed to read .helmignore: %v", err)
+	}
+
+	env := map[string]string{"A": "done"}
+	if err := prepareApplicationFiles(root, ignorePatterns, env, false); err != nil {
+		t.Fatalf("prepareApplicationFiles returned error: %v", err)
+	}
+
+	for _, rel := range files {
+		if got := readTestFile(t, filepath.Join(root, rel)); got != "${A}" {
+			t.Errorf("%s = %q, want unchanged %q", rel, got, "${A}")
+		}
+	}
+}
+
 func TestPrepareApplicationFilesDryRunLeavesFilesUnchanged(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "file.txt")
