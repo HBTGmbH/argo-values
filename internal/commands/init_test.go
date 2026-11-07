@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"argo-values/internal/config"
 	"argo-values/internal/helm"
@@ -399,5 +400,60 @@ func TestProcessFileDoesNotLogSecretValue(t *testing.T) {
 	}
 	if !strings.Contains(logOutput, "SECRET") {
 		t.Errorf("log output must contain the key %q, got: %s", "SECRET", logOutput)
+	}
+}
+
+func TestProcessFileDoesNotRewriteUnchangedFile(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "file.txt")
+	writeTestFile(t, path, "no placeholders here")
+
+	oldTime := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := os.Chtimes(path, oldTime, oldTime); err != nil {
+		t.Fatalf("failed to set mtime: %v", err)
+	}
+
+	env := map[string]string{"A": "done"}
+	if err := processFile(root, path, env, false); err != nil {
+		t.Fatalf("processFile returned error: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("failed to stat file: %v", err)
+	}
+	if !info.ModTime().Equal(oldTime) {
+		t.Errorf("mtime = %v, want unchanged %v (file must not be rewritten)", info.ModTime(), oldTime)
+	}
+}
+
+func TestProcessFileSkipsBinaryFile(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "binary.bin")
+	content := "prefix\x00${A}suffix"
+	writeTestFile(t, path, content)
+
+	env := map[string]string{"A": "done"}
+	if err := processFile(root, path, env, false); err != nil {
+		t.Fatalf("processFile returned error: %v", err)
+	}
+
+	if got := readTestFile(t, path); got != content {
+		t.Errorf("file content = %q, want unchanged %q", got, content)
+	}
+}
+
+func TestMergeDataSkipsMissingConfigMapAndSecret(t *testing.T) {
+	// A nil map entry must not panic; missing sources are skipped instead.
+	got := mergeData(
+		map[string]*v1.ConfigMap{},
+		[]string{"missing"},
+		map[string]*v1.Secret{},
+		[]string{"missing"},
+		config.ParseYAML,
+	)
+
+	if len(got) != 0 {
+		t.Errorf("mergeData() = %#v, want empty result", got)
 	}
 }

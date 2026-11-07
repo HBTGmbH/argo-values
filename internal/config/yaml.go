@@ -324,12 +324,3 @@ func SaveYAML(yamlData map[string]interface{}, file string) error {
 
 	return os.Rename(tmpName, file)
 }
-
-func SaveTemp(yamlData map[string]interface{}) {
-	tmpFile, _ := os.CreateTemp("", "argo-values-*.txt")
-	rawYaml, _ := yaml.Marshal(&yamlData)
-	if _, err := tmpFile.Write(rawYaml); err != nil {
-		_ = tmpFile.Close()
-	}
-	_ = tmpFile.Close()
-}

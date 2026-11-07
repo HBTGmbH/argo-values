@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"k8s.io/utils/env"
@@ -38,7 +39,9 @@ set the application name and namespace instead of command line flags.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO other parameters, kustomize
-		helmArgs := helmTemplateArgs(appName, appNamespace, config.TargetDirectory, config.ValuesFileName)
+		kubeVersion := normalizeKubeVersion(config.GetStringFromEnv("KUBE_VERSION", ""))
+		apiVersions := config.GetArrayFromEnv("KUBE_API_VERSIONS", nil)
+		helmArgs := helmTemplateArgs(appName, appNamespace, config.TargetDirectory, config.ValuesFileName, kubeVersion, apiVersions)
 		helmCmd := exec.Command("helm", helmArgs...)
 		helmCmd.Stdout = os.Stdout
 		helmCmd.Stderr = os.Stderr
@@ -51,15 +54,35 @@ set the application name and namespace instead of command line flags.`,
 
 // helmTemplateArgs builds the arguments for "helm template". The values file path
 // must follow the same rule as init: filepath.Join(TargetDirectory, ValuesFileName).
-func helmTemplateArgs(appName, appNamespace, targetDirectory, valuesFile string) []string {
-	return []string{
-		"template",
-		appName,
-		targetDirectory,
-		"--namespace",
-		appNamespace,
+func helmTemplateArgs(appName, appNamespace, targetDirectory, valuesFile, kubeVersion string, apiVersions []string) []string {
+	args := []string{
+		"template", appName, targetDirectory,
+		"--namespace", appNamespace,
 		"--include-crds",
-		"-f",
-		filepath.Join(targetDirectory, valuesFile),
+		"--dependency-update",
 	}
+	if kubeVersion != "" {
+		args = append(args, "--kube-version", kubeVersion)
+	}
+	for _, apiVersion := range apiVersions {
+		if apiVersion != "" {
+			args = append(args, "--api-versions", apiVersion)
+		}
+	}
+	args = append(args, "-f", filepath.Join(targetDirectory, valuesFile))
+	return args
+}
+
+// normalizeKubeVersion converts a Kubernetes version as reported by Argo CD into
+// the format Helm expects. Argo CD may supply values such as "v1.29.0" or
+// "1.29.0+"/"1.29.0-eks-1234"; only the leading numeric dotted core is kept
+// (e.g. "1.29.0"), because Helm rejects suffixes and a leading "v".
+func normalizeKubeVersion(version string) string {
+	version = strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(version), "v"), "V")
+	if index := strings.IndexFunc(version, func(r rune) bool {
+		return (r < '0' || r > '9') && r != '.'
+	}); index >= 0 {
+		version = version[:index]
+	}
+	return version
 }

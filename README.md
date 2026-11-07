@@ -68,6 +68,11 @@ extraObjects:
               args: [discover]
 ```
 
+The `generate` command passes `KUBE_VERSION` (normalized to a plain version such as
+`1.29.0`) and the comma-separated `KUBE_API_VERSIONS` to Helm as `--kube-version` and
+`--api-versions`. Missing chart dependencies are fetched automatically via
+`--dependency-update`.
+
 ### Add argo-values to Argo CD application controller (optional)
 
 To trigger application refresh automatically every time a ConfigMap or Secret changed, add the following snippet to your

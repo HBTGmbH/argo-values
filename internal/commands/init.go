@@ -5,6 +5,7 @@ import (
 	"argo-values/internal/helm"
 	"argo-values/internal/kubernetes"
 	"argo-values/internal/logger"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -151,14 +152,24 @@ func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, sec
 	var result map[string]interface{}
 
 	for _, name := range configMapNames {
-		data := configMaps[name].Data
+		configMap := configMaps[name]
+		if configMap == nil {
+			logger.Warnf("ConfigMap %q was not loaded, skipping", name)
+			continue
+		}
+		data := configMap.Data
 		for _, key := range sortedKeys(data) {
 			result = config.MergeYAML(result, parse(key, data[key]))
 		}
 	}
 
 	for _, name := range secretNames {
-		data := secrets[name].Data
+		secret := secrets[name]
+		if secret == nil {
+			logger.Warnf("Secret %q was not loaded, skipping", name)
+			continue
+		}
+		data := secret.Data
 		for _, key := range sortedKeys(data) {
 			result = config.MergeYAML(result, parse(key, string(data[key])))
 		}
@@ -222,6 +233,11 @@ func processFile(baseDirectory string, filePath string, env map[string]string, d
 		return fmt.Errorf("failed to read content of file %s: %v", relPath, err)
 	}
 
+	if bytes.IndexByte(content, 0) >= 0 {
+		logger.Debugf("Skip binary file %s", relPath)
+		return nil
+	}
+
 	processedContent := envPattern.ReplaceAllStringFunc(string(content), func(match string) string {
 		// Extract the key from ${KEY}
 		key := config.SanitizeKey(envPattern.ReplaceAllString(match, "$1"))
@@ -236,10 +252,9 @@ func processFile(baseDirectory string, filePath string, env map[string]string, d
 		return match
 	})
 
-	if !dryRun {
-		// Write modified content back to the file
-		err = os.WriteFile(filePath, []byte(processedContent), 0644)
-		if err != nil {
+	if !dryRun && processedContent != string(content) {
+		// Only write if the content actually changed.
+		if err := os.WriteFile(filePath, []byte(processedContent), 0644); err != nil {
 			return fmt.Errorf("failed to write content of file %s: %v", relPath, err)
 		}
 	}
