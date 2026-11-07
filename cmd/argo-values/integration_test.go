@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"os"
@@ -26,7 +27,7 @@ func TestMain(m *testing.M) {
 	}
 
 	binaryPath = filepath.Join(dir, "argo-values")
-	build := exec.Command("go", "build", "-o", binaryPath, ".")
+	build := exec.CommandContext(context.Background(), "go", "build", "-o", binaryPath, ".")
 	build.Stdout = os.Stderr
 	build.Stderr = os.Stderr
 	if err := build.Run(); err != nil {
@@ -56,7 +57,7 @@ func cleanEnv() []string {
 func runBinary(t *testing.T, env []string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 
-	cmd := exec.Command(binaryPath, args...)
+	cmd := exec.CommandContext(t.Context(), binaryPath, args...)
 	cmd.Env = env
 
 	var outBuf, errBuf bytes.Buffer
@@ -105,6 +106,21 @@ func TestIntegrationHelpFlag(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "Usage:") {
 		t.Errorf("stdout does not contain %q:\n%s", "Usage:", stdout)
+	}
+}
+
+func TestIntegrationVersionFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	stdout, stderr, exitCode := runBinary(t, cleanEnv(), "--version")
+
+	if exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr: %s", exitCode, stderr)
+	}
+	if stdout == "" {
+		t.Error("stdout is empty, want version information")
 	}
 }
 

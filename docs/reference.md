@@ -28,6 +28,7 @@ Global flags can be placed before or after the subcommand.
 | `--file-values` | `-v` | – | `app-values.yaml` | Name of the values file |
 | `--file-target` | `-t` | – | `.` | Directory containing the chart files |
 | `--dry-run` | `-d` | – | `false` | no writes/patches for `init`/`watch`; `generate` ignores it |
+| `--version` | – | – | `dev` | Print version and exit |
 
 ## Command Flags
 

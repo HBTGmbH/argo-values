@@ -88,14 +88,6 @@ func TestReadHelmIgnore(t *testing.T) {
 	}
 }
 
-// strPtr returns a pointer to the given string, used to distinguish "no file"
-// from "empty file" in the test table.
-//
-//go:fix inline
-func strPtr(s string) *string {
-	return new(s)
-}
-
 func TestReadHelmIgnoreStripsBOM(t *testing.T) {
 	tempDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(tempDir, ".helmignore"), []byte("\xEF\xBB\xBFtemp/\n"), 0644); err != nil {

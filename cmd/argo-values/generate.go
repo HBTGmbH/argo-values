@@ -3,6 +3,7 @@ package main
 import (
 	"argo-values/internal/config"
 	"argo-values/internal/logger"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,7 +32,8 @@ func (c *GenerateCmd) Run(g *Global) error {
 	kubeVersion := normalizeKubeVersion(config.GetStringFromEnv("KUBE_VERSION", ""))
 	apiVersions := config.GetArrayFromEnv("KUBE_API_VERSIONS", nil)
 	helmArgs := helmTemplateArgs(c.AppName, c.AppNamespace, g.TargetDirectory, g.ValuesFileName, kubeVersion, apiVersions)
-	helmCmd := exec.Command("helm", helmArgs...)
+	//nolint:gosec // helm is resolved via PATH by design; args come from trusted config
+	helmCmd := exec.CommandContext(context.Background(), "helm", helmArgs...)
 	helmCmd.Stdout = os.Stdout
 	helmCmd.Stderr = os.Stderr
 

@@ -153,7 +153,7 @@ func ParseAppParameters() (AppParameters, error) {
 
 	appParametersFromEnv, err := Parse(env.GetString("ARGOCD_APP_PARAMETERS", "[]"))
 	if err != nil {
-		return appParameters, fmt.Errorf("failed to parse ARGOCD_APP_PARAMETERS: %v", err)
+		return appParameters, fmt.Errorf("failed to parse ARGOCD_APP_PARAMETERS: %w", err)
 	}
 
 	valueConfigsFromEnv := GetArrayFromEnv("ARGOCD_ENV_VALUE_CONFIGS", []string{})

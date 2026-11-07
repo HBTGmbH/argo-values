@@ -49,7 +49,8 @@ The full user documentation lives in [`docs/`](docs/README.md):
 `argo-values` provides the subcommands `init`, `generate`, `discover`, and `watch`.
 Run `argo-values --help` for an overview and `argo-values <command> --help` for the
 flags of a specific command. The command help also shows the environment variable
-that can be used instead of each flag.
+that can be used instead of each flag. `argo-values --version` prints the build
+version (for local builds without ldflags: `dev`).
 
 - The `init` list flags (`--value-maps`, `--env-maps`, `--value-secrets`, `--env-secrets`)
   are repeatable. Each occurrence is added as-is, so comma-separated values are not split.

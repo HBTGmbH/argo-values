@@ -202,6 +202,7 @@ func UnflattenYAML(flat map[string]string, sanitized bool) map[string]any {
 	result := make(map[string]any)
 
 	for _, e := range entries {
+		//nolint:errcheck // setPath always returns a map for a keyed first step
 		result = setPath(result, e.steps, e.value).(map[string]any)
 	}
 
@@ -298,18 +299,18 @@ func SaveYAML(yamlData map[string]any, file string) error {
 		return err
 	}
 	tmpName := tmpFile.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 
-	if err := tmpFile.Chmod(0600); err != nil {
+	if chmodErr := tmpFile.Chmod(0o600); chmodErr != nil {
 		_ = tmpFile.Close()
-		return err
+		return chmodErr
 	}
-	if _, err := tmpFile.Write(rawYaml); err != nil {
+	if _, writeErr := tmpFile.Write(rawYaml); writeErr != nil {
 		_ = tmpFile.Close()
-		return err
+		return writeErr
 	}
-	if err := tmpFile.Close(); err != nil {
-		return err
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		return closeErr
 	}
 
 	info, err := os.Lstat(file)

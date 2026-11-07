@@ -96,7 +96,7 @@ func generateValues(client *kubernetes.Client, appParameters *config.AppParamete
 		if _, found := configMaps[name]; !found {
 			configMap, err := client.GetConfigmap(name, defaultNamespace)
 			if err != nil {
-				return nil, nil, fmt.Errorf("unable to get ConfigMap %s: %v", name, err)
+				return nil, nil, fmt.Errorf("unable to get ConfigMap %s: %w", name, err)
 			}
 			configMaps[name] = configMap
 		}
@@ -107,7 +107,7 @@ func generateValues(client *kubernetes.Client, appParameters *config.AppParamete
 		if _, found := secrets[name]; !found {
 			secret, err := client.GetSecret(name, defaultNamespace)
 			if err != nil {
-				return nil, nil, fmt.Errorf("unable to get Secret %s: %v", name, err)
+				return nil, nil, fmt.Errorf("unable to get Secret %s: %w", name, err)
 			}
 			secrets[name] = secret
 		}
@@ -116,7 +116,7 @@ func generateValues(client *kubernetes.Client, appParameters *config.AppParamete
 	// Parse YAML from configmaps and secrets
 	mergedValues, err := mergeData(configMaps, appParameters.Values.ConfigMaps, secrets, appParameters.Values.Secrets, config.ParseYAML)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to init values: %v", err)
+		return nil, nil, fmt.Errorf("failed to init values: %w", err)
 	}
 
 	helmValues := config.UnflattenYAML(appParameters.Helm.Values, false)
@@ -125,7 +125,7 @@ func generateValues(client *kubernetes.Client, appParameters *config.AppParamete
 
 	mergedEnv, err := mergeData(configMaps, appParameters.Env.ConfigMaps, secrets, appParameters.Env.Secrets, config.ParseEnv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to init env: %v", err)
+		return nil, nil, fmt.Errorf("failed to init env: %w", err)
 	}
 	flattenEnv := map[string]string{}
 	config.FlattenYAML(mergedEnv, "", flattenEnv)
@@ -199,7 +199,7 @@ func prepareApplicationFiles(directory string, ignorePatterns *helm.IgnoreFile, 
 
 		err = processFile(directory, path, env, dryRun)
 		if err != nil {
-			return fmt.Errorf("failed to process file %s: %v", path, err)
+			return fmt.Errorf("failed to process file %s: %w", path, err)
 		}
 
 		return nil
@@ -221,9 +221,10 @@ func processFile(baseDirectory string, filePath string, env map[string]string, d
 	}
 
 	// Read file content
+	//nolint:gosec // filePath is a regular file inside the configured target directory
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return fmt.Errorf("failed to read content of file %s: %v", relPath, err)
+		return fmt.Errorf("failed to read content of file %s: %w", relPath, err)
 	}
 
 	if bytes.IndexByte(content, 0) >= 0 {
@@ -247,8 +248,9 @@ func processFile(baseDirectory string, filePath string, env map[string]string, d
 
 	if !dryRun && processedContent != string(content) {
 		// Only write if the content actually changed.
+		//nolint:gosec // 0644 is documented behavior for substituted application files
 		if err := os.WriteFile(filePath, []byte(processedContent), 0644); err != nil {
-			return fmt.Errorf("failed to write content of file %s: %v", relPath, err)
+			return fmt.Errorf("failed to write content of file %s: %w", relPath, err)
 		}
 	}
 

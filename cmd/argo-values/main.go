@@ -7,6 +7,10 @@ import (
 	"github.com/alecthomas/kong"
 )
 
+// version is the CLI version. It is overridden at build time via
+// -ldflags "-X main.version=...".
+var version = "dev"
+
 // Global holds the flags that are shared by all commands.
 type Global struct {
 	LogLevel        string `name:"log-level" short:"l" env:"LOG_LEVEL" default:"debug" help:"Log level (debug, info, warn, error, fatal, panic)"`
@@ -27,6 +31,8 @@ type CLI struct {
 	Watch    WatchCmd    `cmd:"" help:"Watch Kubernetes resources and refresh Argo applications"`
 
 	Help HelpCmd `cmd:"" default:"1" hidden:"" help:"Show help."`
+
+	Version kong.VersionFlag `name:"version" help:"Print version information and exit."`
 }
 
 type HelpCmd struct{}
@@ -44,6 +50,7 @@ func New(commandLine *CLI) (*kong.Kong, error) {
 	return kong.New(commandLine,
 		kong.Name("argo-values"),
 		kong.Description("A CLI tool for managing Argo application with values from additional resources like ConfigMaps and Secrets"),
+		kong.Vars{"version": version},
 	)
 }
 

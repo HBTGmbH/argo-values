@@ -230,7 +230,7 @@ func TestPrepareApplicationFilesHelmIgnorePathPattern(t *testing.T) {
 		t.Fatalf("prepareApplicationFiles returned error: %v", err)
 	}
 
-	if got := readTestFile(t, filepath.Join(root, "templates/a.yaml")); got != "${A}" {
+	if got := readTestFile(t, filepath.Join(root, "templates", "a.yaml")); got != "${A}" {
 		t.Errorf("templates/a.yaml = %q, want unchanged %q", got, "${A}")
 	}
 	for _, rel := range files[1:] {

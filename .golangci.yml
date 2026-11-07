@@ -1,0 +1,56 @@
+version: "2"
+
+# Only linters that can find bugs or security issues, no style linters.
+# gosec runs with every rule and gocritic with its diagnostic checks; silence a
+# false positive at its site with //nolint:<linter> // <reason> instead of
+# disabling the rule.
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - contextcheck
+    - durationcheck
+    - errchkjson
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - gocheckcompilerdirectives
+    - gocritic
+    - gosec
+    - makezero
+    - musttag
+    - nilerr
+    - nilnesserr
+    - noctx
+    - nosprintfhostport
+    - reassign
+    - wastedassign
+  settings:
+    errcheck:
+      check-type-assertions: true
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # memory layout, not correctness
+        - findcall # demo analyzer
+    staticcheck:
+      checks: ["SA*"] # bug checks only; S, ST and QF are style
+    gocritic:
+      enabled-tags:
+        - diagnostic
+    exhaustive:
+      default-signifies-exhaustive: true
+    fatcontext:
+      check-struct-pointers: true
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

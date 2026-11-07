@@ -344,6 +344,8 @@ func updateResourceVersions(known map[string]string, event watch.Event) {
 		known[obj.GetName()] = obj.GetResourceVersion()
 	case watch.Deleted:
 		delete(known, obj.GetName())
+	case watch.Bookmark, watch.Error:
+		// No resource version update needed for bookmarks or errors.
 	}
 }
 
@@ -434,5 +436,8 @@ func (w *ResourceWatcher) handleEvent(event watch.Event, resource schema.GroupVe
 		} else {
 			logger.Errorf("Error watching %s in %s: %v", resource.Resource, namespace, event.Object)
 		}
+
+	case watch.Bookmark:
+		// Bookmarks only carry a resource version; nothing to do here.
 	}
 }

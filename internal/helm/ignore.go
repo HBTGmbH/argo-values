@@ -33,6 +33,7 @@ func ReadHelmIgnore(directory string) (*IgnoreFile, error) {
 	info, err := os.Stat(helmIgnorePath)
 	switch {
 	case err == nil && !info.IsDir():
+		//nolint:gosec // helmIgnorePath is derived from the chart directory under our control
 		file, openErr := os.Open(helmIgnorePath)
 		if openErr != nil {
 			return nil, openErr

@@ -15,3 +15,8 @@ Thumbs.db
 # Ignore generated helm artifacts
 charts/*/charts/
 charts/*/Chart.lock
+
+# Build artifacts
+bin/
+dist/
+coverage.txt
