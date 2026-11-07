@@ -145,30 +145,61 @@ func isRetryableRefreshError(err error) bool {
 		apierrors.IsConflict(err)
 }
 
-// parseNamespacedName splits a "namespace/name" reference. Unqualified names
-// (including "/name" and "namespace/") use defaultNamespace, falling back to
-// "default" when it is empty. Only the first "/" separates both parts.
-func parseNamespacedName(name, defaultNamespace string) (namespace, resource string) {
+// ErrInvalidResourceReference is returned when a resource reference cannot be
+// parsed as "name" or "namespace/name".
+var ErrInvalidResourceReference = errors.New("invalid resource reference")
+
+// ParseResourceReference splits a resource reference into namespace and name.
+// It accepts "name" (using defaultNamespace) or "namespace/name". Whitespace
+// around both parts is trimmed. Empty parts and more than one slash are rejected.
+func ParseResourceReference(reference, defaultNamespace string) (namespace, name string, err error) {
 	if defaultNamespace == "" {
 		defaultNamespace = "default"
 	}
 
-	separator := strings.Index(name, "/")
-	if separator <= 0 || separator == len(name)-1 {
-		return defaultNamespace, name
+	reference = strings.TrimSpace(reference)
+	if reference == "" {
+		return "", "", invalidResourceReference(reference)
 	}
 
-	return name[:separator], name[separator+1:]
+	parts := strings.Split(reference, "/")
+	switch len(parts) {
+	case 1:
+		name = strings.TrimSpace(parts[0])
+		if name == "" {
+			return "", "", invalidResourceReference(reference)
+		}
+		return defaultNamespace, name, nil
+	case 2:
+		namespace = strings.TrimSpace(parts[0])
+		name = strings.TrimSpace(parts[1])
+		if namespace == "" || name == "" {
+			return "", "", invalidResourceReference(reference)
+		}
+		return namespace, name, nil
+	default:
+		return "", "", invalidResourceReference(reference)
+	}
+}
+
+func invalidResourceReference(reference string) error {
+	return fmt.Errorf("%w %q: expected name or namespace/name", ErrInvalidResourceReference, reference)
 }
 
 func (k *Client) GetConfigmap(name, defaultNamespace string) (*v1.ConfigMap, error) {
-	namespace, resource := parseNamespacedName(name, defaultNamespace)
+	namespace, resource, err := ParseResourceReference(name, defaultNamespace)
+	if err != nil {
+		return nil, err
+	}
 	logger.Debugf("Get ConfigMap %s from namespace %s", resource, namespace)
 	return k.clientSet.CoreV1().ConfigMaps(namespace).Get(context.Background(), resource, metav1.GetOptions{})
 }
 
 func (k *Client) GetSecret(name, defaultNamespace string) (*v1.Secret, error) {
-	namespace, resource := parseNamespacedName(name, defaultNamespace)
+	namespace, resource, err := ParseResourceReference(name, defaultNamespace)
+	if err != nil {
+		return nil, err
+	}
 	logger.Debugf("Get Secret %s from namespace %s", resource, namespace)
 	return k.clientSet.CoreV1().Secrets(namespace).Get(context.Background(), resource, metav1.GetOptions{})
 }

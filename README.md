@@ -157,6 +157,10 @@ plugin manually into an existing Argo CD installation (`withArgoCD: false`), you
 
 ## Examples
 
+ConfigMap and Secret references are written either as `name` or as `namespace/name`. Unqualified
+names are resolved in the default namespace. Empty parts (for example `/name` or `namespace/`) and
+more than one `/` (for example `a/b/c`) are rejected.
+
 ### Add additional values.yaml from ConfigMap to Helm chart
 
 ```yaml

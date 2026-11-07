@@ -273,21 +273,14 @@ func getKindFromName(name string) string {
 }
 
 func getKeysFromObjs(kind string, names []string, defaultNamespace string) []string {
-	if defaultNamespace == "" {
-		defaultNamespace = "default"
-	}
-
 	keys := make([]string, 0, len(names))
 	for _, name := range names {
-		name = strings.TrimSpace(name)
-		if name == "" {
+		namespace, resource, err := kubernetes.ParseResourceReference(name, defaultNamespace)
+		if err != nil {
+			logger.Warnf("Ignoring invalid %s reference %q: %v", kind, name, err)
 			continue
 		}
-		if strings.Index(name, "/") > 0 {
-			keys = append(keys, fmt.Sprintf("%s/%s", kind, name))
-		} else {
-			keys = append(keys, fmt.Sprintf("%s/%s/%s", kind, defaultNamespace, name))
-		}
+		keys = append(keys, fmt.Sprintf("%s/%s/%s", kind, namespace, resource))
 	}
 	return keys
 }

@@ -6,11 +6,14 @@ import (
 	"net"
 	"testing"
 
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
 
@@ -20,29 +23,78 @@ var testApplicationResource = schema.GroupVersionResource{
 	Resource: "applications",
 }
 
-func TestParseNamespacedName(t *testing.T) {
+func TestParseResourceReference(t *testing.T) {
 	tests := []struct {
 		name             string
+		reference        string
 		defaultNamespace string
 		wantNamespace    string
-		wantResource     string
+		wantName         string
+		wantErr          bool
 	}{
-		{name: "ns/cm", defaultNamespace: "argocd", wantNamespace: "ns", wantResource: "cm"},
-		{name: "cm", defaultNamespace: "argocd", wantNamespace: "argocd", wantResource: "cm"},
-		{name: "cm", defaultNamespace: "", wantNamespace: "default", wantResource: "cm"},
-		{name: "/cm", defaultNamespace: "argocd", wantNamespace: "argocd", wantResource: "/cm"},
-		{name: "ns/", defaultNamespace: "argocd", wantNamespace: "argocd", wantResource: "ns/"},
-		{name: "a/b/c", defaultNamespace: "argocd", wantNamespace: "a", wantResource: "b/c"},
+		{name: "unqualified", reference: "cm", defaultNamespace: "argocd", wantNamespace: "argocd", wantName: "cm"},
+		{name: "qualified", reference: "ns/cm", defaultNamespace: "argocd", wantNamespace: "ns", wantName: "cm"},
+		{name: "unqualified without default namespace", reference: "cm", defaultNamespace: "", wantNamespace: "default", wantName: "cm"},
+		{name: "whitespace around parts", reference: " ns / cm ", defaultNamespace: "argocd", wantNamespace: "ns", wantName: "cm"},
+		{name: "empty namespace", reference: "/cm", defaultNamespace: "argocd", wantErr: true},
+		{name: "empty name", reference: "ns/", defaultNamespace: "argocd", wantErr: true},
+		{name: "too many parts", reference: "a/b/c", defaultNamespace: "argocd", wantErr: true},
+		{name: "empty reference", reference: "", defaultNamespace: "argocd", wantErr: true},
+		{name: "whitespace only", reference: " / ", defaultNamespace: "argocd", wantErr: true},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name+"/"+tt.defaultNamespace, func(t *testing.T) {
-			namespace, resource := parseNamespacedName(tt.name, tt.defaultNamespace)
-			if namespace != tt.wantNamespace || resource != tt.wantResource {
-				t.Fatalf("parseNamespacedName(%q, %q) = (%q, %q), want (%q, %q)",
-					tt.name, tt.defaultNamespace, namespace, resource, tt.wantNamespace, tt.wantResource)
+		t.Run(tt.name, func(t *testing.T) {
+			namespace, name, err := ParseResourceReference(tt.reference, tt.defaultNamespace)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("ParseResourceReference(%q, %q) = (%q, %q), want error",
+						tt.reference, tt.defaultNamespace, namespace, name)
+				}
+				if !errors.Is(err, ErrInvalidResourceReference) {
+					t.Fatalf("expected ErrInvalidResourceReference, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ParseResourceReference(%q, %q) returned unexpected error: %v",
+					tt.reference, tt.defaultNamespace, err)
+			}
+			if namespace != tt.wantNamespace || name != tt.wantName {
+				t.Fatalf("ParseResourceReference(%q, %q) = (%q, %q), want (%q, %q)",
+					tt.reference, tt.defaultNamespace, namespace, name, tt.wantNamespace, tt.wantName)
 			}
 		})
+	}
+}
+
+func TestGetConfigmapRejectsInvalidReference(t *testing.T) {
+	client := &Client{clientSet: fake.NewSimpleClientset()}
+
+	if _, err := client.GetConfigmap("a/b/c", "default"); err == nil {
+		t.Fatal("expected GetConfigmap to reject an invalid reference")
+	}
+}
+
+func TestGetSecretRejectsInvalidReference(t *testing.T) {
+	client := &Client{clientSet: fake.NewSimpleClientset()}
+
+	if _, err := client.GetSecret("a/b/c", "default"); err == nil {
+		t.Fatal("expected GetSecret to reject an invalid reference")
+	}
+}
+
+func TestGetConfigmapUsesQualifiedReference(t *testing.T) {
+	client := &Client{clientSet: fake.NewSimpleClientset(&v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "cm", Namespace: "ns"},
+	})}
+
+	configMap, err := client.GetConfigmap("ns/cm", "default")
+	if err != nil {
+		t.Fatalf("GetConfigmap returned unexpected error: %v", err)
+	}
+	if configMap.Name != "cm" || configMap.Namespace != "ns" {
+		t.Fatalf("GetConfigmap returned %s/%s, want ns/cm", configMap.Namespace, configMap.Name)
 	}
 }
 

@@ -213,6 +213,19 @@ func TestGetKeysFromObjsTrimsWhitespaceAndSkipsEmptyNames(t *testing.T) {
 	}
 }
 
+func TestGetKeysFromObjsSkipsInvalidReferences(t *testing.T) {
+	got := getKeysFromObjs("configmaps", []string{"cm", "/bad", "ns/", "a/b/c", ""}, "argocd")
+	want := []string{"configmaps/argocd/cm"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
 func TestGetApplicationResourcesFromEnvTrimsWhitespace(t *testing.T) {
 	envs := []interface{}{
 		map[string]interface{}{"name": "value-configs", "value": "cm1, cm2"},
