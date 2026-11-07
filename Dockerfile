@@ -20,7 +20,7 @@ FROM alpine:latest
 
 ARG HELM_VERSION=3.19.0-r9
 ARG APP_VERSION=1.0.0
-ARG GO_VERSION=1.26
+ARG GO_VERSION=1.27
 
 # Add labels for better image identification
 LABEL org.opencontainers.image.title="argo-values"
