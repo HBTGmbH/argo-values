@@ -5,9 +5,7 @@ This page walks you from installation to your first Application rendered with
 
 ## Prerequisites
 
-- A running Kubernetes cluster with Argo CD (or the willingness to install Argo CD
-  through the chart).
-- Helm 3 to install the chart.
+- A running Kubernetes cluster with an existing Argo CD installation.
 - Access to the container registry that hosts the `argo-values` image and the
   Argo CD image.
 - A Git repository containing a Helm chart that Argo CD should render.
@@ -17,60 +15,44 @@ This page walks you from installation to your first Application rendered with
   Helm repositories.
 
 > **Versions:** `copy-cmp-server` must match the Argo CD / repo-server version in
-> use. Use the same image tag for this init container as for the repo-server. The
-> chart bundles an Argo CD dependency; make sure `Chart.yaml`, `Chart.lock`, and
-> the bundled dependency are consistent.
+> use. Use the same image tag for this init container as for the repo-server.
 
-## Installation Options
+## Installation
 
-### Option A: Chart with Argo CD as a Subchart
+`argo-values` runs as a Config Management Plugin (CMP) sidecar in an **existing
+Argo CD installation**. The integration has the following steps:
 
-The chart installs Argo CD as a subchart when `withArgoCD=true` is set (the
-default). RBAC resources are also created when `rbac.create=true` (the default)
-applies.
+1. Create the `argocd-cmp-plugin-config` ConfigMap with `plugin.yaml`
+   (see [Full plugin.yaml](#full-pluginyaml)).
+2. Add the `copy-cmp-server` init container and the `argo-values` CMP sidecar to the
+   repo-server (see [repo-server Sidecar](#repo-server-sidecar)).
+3. Optionally add the `argo-values watch` sidecar to the application-controller
+   (see [Optional watch Sidecar in the application-controller](#optional-watch-sidecar-in-the-application-controller)).
+4. Create the RBAC rules for the repo-server and application-controller service
+   accounts (see [RBAC](#rbac)).
+5. Verify the installation (see [Verification](#verification)).
 
-```bash
-helm upgrade --install argo-values ./charts/argo-values \
-  --namespace argocd --create-namespace \
-  --set withArgoCD=true
+The snippets below are intended for the `values.yaml` of your existing Argo CD Helm
+installation. The plugin ConfigMap must exist in the Argo CD namespace, for example
+via `extraObjects` (change `namespace` if Argo CD runs elsewhere):
+
+```yaml
+extraObjects:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: argocd-cmp-plugin-config
+      namespace: argocd
+    data:
+      plugin.yaml: |
+        # Paste the full ConfigManagementPlugin manifest from the next section here.
 ```
-
-You can enable optional demo resources (ConfigMaps and an example Application)
-with:
-
-```bash
-helm upgrade --install argo-values ./charts/argo-values \
-  --namespace argocd --create-namespace \
-  --set withArgoCD=true \
-  --set withHelmExample=true
-```
-
-`withHelmExample=true` creates the ConfigMaps `test-env` and `test-values` in the
-`default` namespace and the Application `nginx-example` in the `argocd` namespace.
-
-### Option B: Existing Argo CD Installation
-
-For an existing installation, set `withArgoCD=false`:
-
-```bash
-helm upgrade --install argo-values ./charts/argo-values \
-  --namespace argocd \
-  --set withArgoCD=false
-```
-
-This creates only the plugin-specific resources (the ConfigMap; RBAC is created
-only together with `withArgoCD=true`), but not Argo CD itself. Install the chart
-in the namespace where the repo-server runs so that the ConfigMap mount works.
-
-Alternatively, you can add the following snippets directly to the `values.yaml`
-of your Argo CD Helm installation. The plugin ConfigMap must exist in the Argo CD
-namespace for this (for example via `extraObjects` or by applying it separately).
 
 ## Full plugin.yaml
 
-The chart creates a ConfigMap named `argocd-cmp-plugin-config` with the following
-content. The declaration under `spec.parameters.static` is required so that Argo CD
-passes the parameters from `plugin.parameters` to the plugin:
+Create a ConfigMap named `argocd-cmp-plugin-config` with the following content. The
+declaration under `spec.parameters.static` is required so that Argo CD passes the
+parameters from `plugin.parameters` to the plugin:
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -125,6 +107,11 @@ spec:
 omit `spec.version`, the effective name is just `argo-values`. If you run multiple
 CMPs, keep the names unique and, if necessary, set `spec.source.plugin.name` on the
 Application to the effective name so that Argo CD selects the correct plugin.
+
+`generate` passes `KUBE_VERSION` (normalized to a plain version such as `1.29.0`)
+and the comma-separated `KUBE_API_VERSIONS` to Helm as `--kube-version` and
+`--api-versions`. Missing chart dependencies are fetched via
+`--dependency-update`.
 
 ## repo-server Sidecar
 
@@ -227,11 +214,8 @@ to watch and patch Applications.
 | application-controller | `configmaps`, `secrets` | `get`, `list`, `watch` |
 | application-controller | `applications.argoproj.io` | `get`, `list`, `watch`, `patch` |
 
-With `withArgoCD=true` and `rbac.create=true`, the chart creates suitable
-ClusterRoles and ClusterRoleBindings. `rbac.create=false` disables this. With
-`withArgoCD=false`, you must create the permissions yourself.
-
-Example manual RBAC resources (replace the placeholders):
+Create the RBAC resources manually. Service account names depend on your Argo CD
+installation. Example manual RBAC resources (replace the placeholders):
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1

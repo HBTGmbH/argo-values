@@ -223,13 +223,13 @@ spec:
 
 With `spec.version` set, the effective plugin name is
 `<metadata.name>-<spec.version>`; without `spec.version`, it is only
-`<metadata.name>`. The bundled manifest sets `metadata.name: argo-values` and
+`<metadata.name>`. The provided manifest sets `metadata.name: argo-values` and
 `spec.version: v1.0`, so the effective name is **`argo-values-v1.0`**. Use that
 value for `spec.source.plugin.name`.
 
 Without `spec.parameters.static`, `plugin.parameters` and `helmValues` do not work
-reliably. The chart ConfigMap contains the declaration; a minimal snippet with only
-`init`/`generate`/`discover` does not.
+reliably. The full `plugin.yaml` in Getting Started contains the declaration; a
+minimal snippet with only `init`/`generate`/`discover` does not.
 
 ## Naming Mapping
 

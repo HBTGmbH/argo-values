@@ -15,7 +15,7 @@ from Kubernetes ConfigMaps and Secrets.
 
 ## TL;DR – CMP in 5 Minutes
 
-1. **Install:** Install the chart with `withArgoCD=true` (the default) or adopt the sidecar snippets for an existing Argo CD installation from [Getting Started](docs/getting-started.md#installation-options). Make sure the `copy-cmp-server` image matches the Argo CD / repo-server version.
+1. **Install:** Create the plugin ConfigMap and add the repo-server/controller sidecar snippets from [Getting Started](docs/getting-started.md#installation). Make sure the `copy-cmp-server` image matches the Argo CD / repo-server version.
 2. **Create value sources:** Create ConfigMap(s) with additional Helm values (`values.yaml`) and/or environment variables; Secrets are an alternative.
 3. **Configure the Application:** In `spec.source.plugin.env`, set the sources as comma-separated strings (`value-configs`, `env-configs`, `value-secrets`, `env-secrets`), or use `plugin.parameters` with `array`/`map`. `plugin.parameters`/`helmValues` require `spec.parameters.static` in `plugin.yaml`.
 4. **Sync:** Argo CD calls `discover` → `init` → `generate` in the repo-server. `init` writes `app-values.yaml` and replaces `${VAR}` in the chart files; `generate` runs `helm template`.
@@ -86,130 +86,23 @@ are cached in plaintext in Redis and exposed via the repo-server API. See the [A
 For sensitive values, prefer destination-cluster solutions such as External Secrets Operator, Vault Secrets Operator, 
 or Sealed Secrets, and reference the resulting Kubernetes Secret from the chart instead of rendering its value.
 
-## Installation with Argo CD Helm chart
+## Installation
 
-### Configure argo-values CMP
+`argo-values` runs as a Config Management Plugin sidecar in an existing Argo CD
+installation. The complete walkthrough is in
+[Getting Started](docs/getting-started.md#installation):
 
-Add the following snippet to your `values.yaml` to configure argo-values as CMP:
-```yaml
-extraObjects:
-  - apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: argocd-cmp-plugin-config
-      namespace: argocd               
-    data:
-      plugin.yaml: |
-        apiVersion: argoproj.io/v1alpha1
-        kind: ConfigManagementPlugin
-        metadata:
-          name: argo-values
-        spec:
-          version: v1.0
-          init:
-            command: [argo-values]
-            args: [init]
-          generate:
-            command: [argo-values]
-            args: [generate]
-          discover:
-            find:
-              command: [argo-values]
-              args: [discover]
-```
-
-The `generate` command passes `KUBE_VERSION` (normalized to a plain version such as
-`1.29.0`) and the comma-separated `KUBE_API_VERSIONS` to Helm as `--kube-version` and
-`--api-versions`. Missing chart dependencies are fetched automatically via
-`--dependency-update`.
-
-### Add argo-values to Argo CD application controller (optional)
-
-To trigger application refresh automatically every time a ConfigMap or Secret changed, add the following snippet to your
-`values.yaml`:
-```yaml
-controller:
-  extraContainers:
-    - name: argo-values
-      image: ghcr.io/hbtgmbh/argo-values:latest
-      command: [argo-values]
-      args: [watch]
-      env:
-        - name: ARGOCD_VALUES_REFRESH_SECONDS
-          value: "3"
-        - name: ARGOCD_VALUES_NAMESPACES
-          value: "argocd,default"
-        - name: LOG_OUTPUT
-          value: "stderr"
-```
-
-Logs are written to stderr by default (`LOG_OUTPUT=stderr`). Stdout is reserved for the
-actual command output, such as the discovery token from `discover` and the rendered Helm
-manifests from `generate`. Set `LOG_OUTPUT=stdout` only if you explicitly want logs on stdout.
-
-### Add argo-values to ArgoCD repo server
-
-To run argo-values as sidecar with the repo server, add the following snippet to your `values.yaml`.
-Make sure the `copy-cmp-server` image matches your Argo CD / repo-server version:
-```yaml
-repoServer:
-  initContainers:
-    - name: copy-cmp-server
-      image: "quay.io/argoproj/argocd:<same-tag-as-your-repo-server>"
-      command: [cp, /usr/local/bin/argocd-cmp-server, /custom-tools/]
-      volumeMounts:
-        - name: custom-tools
-          mountPath: /custom-tools
-  extraContainers:
-    - name: argo-values
-      image: ghcr.io/hbtgmbh/argo-values:latest
-      command: [/custom-tools/argocd-cmp-server]
-      imagePullPolicy: Always
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 999
-      volumeMounts:
-        - name: var-files
-          mountPath: /var/run/argocd
-        - name: plugins
-          mountPath: /home/argocd/cmp-server/plugins
-        - name: cmp-tmp
-          mountPath: /tmp
-        - name: cmp-plugin-config
-          mountPath: /home/argocd/cmp-server/config/plugin.yaml
-          subPath: plugin.yaml
-        - name: custom-tools
-          mountPath: /custom-tools
-  volumes:
-    - name: cmp-plugin-config
-      configMap:
-        name: argocd-cmp-plugin-config
-    - name: cmp-tmp
-      emptyDir: {}
-    - name: custom-tools
-      emptyDir: {}
-```
+1. Create the `argocd-cmp-plugin-config` ConfigMap with `plugin.yaml`.
+2. Add the `copy-cmp-server` init container and the `argo-values` CMP sidecar to the repo-server.
+3. Optionally add the `argo-values watch` sidecar to the application-controller.
+4. Create the RBAC rules for the repo-server and application-controller service accounts.
 
 ## RBAC
 
-`argo-values init` runs in the repo-server pod and must be able to read the referenced ConfigMaps and Secrets.
-`argo-values watch` runs in the application-controller pod and additionally needs access to Argo CD Applications.
-
-Required permissions:
-
-| Service account | Resources | Verbs |
-| --- | --- | --- |
-| repo-server | `configmaps`, `secrets` | `get` |
-| application-controller | `configmaps`, `secrets` | `get`, `list`, `watch` |
-| application-controller | `applications.argoproj.io` | `get`, `list`, `watch`, `patch` |
-
-With `withArgoCD: true` the chart creates the required ClusterRoles and ClusterRoleBindings automatically.
-Set `rbac.create: false` to disable this, for example when you manage RBAC yourself. When you integrate the
-plugin manually into an existing Argo CD installation (`withArgoCD: false`), you have to create these permissions yourself.
-
-> **Security note:** The ClusterRole for the repo-server service account grants cluster-wide `get` on ConfigMaps and
-> Secrets. `argo-values init` needs this to read referenced objects from arbitrary namespaces. If your setup allows it,
-> restrict these permissions (for example to specific namespaces) to follow the principle of least privilege.
+`init` needs `get` on ConfigMaps/Secrets; `watch` needs `get/list/watch` on
+ConfigMaps/Secrets and `get/list/watch/patch` on Applications. The full table and
+manual ClusterRole/ClusterRoleBinding examples are in
+[Getting Started – RBAC](docs/getting-started.md#rbac).
 
 ## Examples
 
@@ -241,9 +134,9 @@ spec:
 ```
 
 > **Note:** `plugin.parameters` and `helmValues` require the parameters to be declared under
-> `spec.parameters.static` in `plugin.yaml`. The chart's ConfigMap includes this declaration; the
-> minimal snippet above does not. See [docs/reference.md](docs/reference.md#plugin-yaml-reference) for
-> the full reference.
+> `spec.parameters.static` in `plugin.yaml`. The minimal snippet above does not include this
+> declaration. See [Getting Started](docs/getting-started.md#full-pluginyaml) or
+> [docs/reference.md](docs/reference.md#plugin-yaml-reference) for the full manifest.
 
 Every ConfigMap from `value-configs` or Secret from `value-secrets` will be added directly to the Helm templates of the 
 application:

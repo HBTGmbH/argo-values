@@ -20,20 +20,11 @@ This documentation is intended for platform teams and users who
 
 ## Quick Start (TL;DR)
 
-### 1. Install
+### 1. Integrate into an existing Argo CD installation
 
-Use the chart with `withArgoCD=true` (the default) if Argo CD should be installed
-as a subchart:
-
-```bash
-helm upgrade --install argo-values ./charts/argo-values \
-  --namespace argocd --create-namespace \
-  --set withArgoCD=true
-```
-
-For an existing Argo CD installation, use `withArgoCD=false` and adopt the sidecar
-snippets from [Getting Started](getting-started.md#installation-options). Make sure
-the `copy-cmp-server` image matches the Argo CD / repo-server version in use.
+Create the plugin ConfigMap and add the repo-server/controller sidecar snippets from
+[Getting Started](getting-started.md#installation). Make sure the
+`copy-cmp-server` image matches the Argo CD / repo-server version in use.
 
 ### 2. Create value sources
 
@@ -85,7 +76,8 @@ spec:
 
 Alternatively, you can use `plugin.parameters` with `array`/`map`. This requires
 the parameters to be declared under `spec.parameters.static` in `plugin.yaml` (the
-chart ConfigMap contains this declaration; a minimal snippet does not). See
+full `plugin.yaml` in Getting Started contains this declaration; a minimal snippet
+does not). See
 [Configuration](configuration.md) and [Reference](reference.md#naming-mapping).
 
 ### 4. Sync
@@ -135,7 +127,7 @@ triggers a hard refresh for affected Applications. Details:
 
 | Page | Contents |
 | --- | --- |
-| [Getting Started](getting-started.md) | Prerequisites, installation options, full `plugin.yaml`, sidecars, RBAC, verification, first Application |
+| [Getting Started](getting-started.md) | Prerequisites, installation, full `plugin.yaml`, sidecars, RBAC, verification, first Application |
 | [How It Works](how-it-works.md) | Architecture, `discover`/`init`/`generate` lifecycle, value resolution, `watch`, discovery decision |
 | [Configuration](configuration.md) | Application configuration, value sources, reference formats, precedence, merge, env substitution, files/paths, limitations |
 | [Operations](operations.md) | `watch`/refresh, logging, security, RBAC, compatibility/upgrade, [Troubleshooting](operations.md#troubleshooting) |

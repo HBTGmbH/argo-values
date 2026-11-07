@@ -48,9 +48,9 @@ spec:
 ```
 
 > **Requirement:** `plugin.parameters` only works when the parameters are declared
-> under `spec.parameters.static` in `plugin.yaml`. The chart ConfigMap contains
-> this declaration; a minimal `plugin.yaml` snippet without
-> `spec.parameters.static` does not. The full reference is in
+> under `spec.parameters.static` in `plugin.yaml`. The full `plugin.yaml` in
+> Getting Started contains this declaration; a minimal `plugin.yaml` snippet
+> without `spec.parameters.static` does not. The full reference is in
 > [reference.md](reference.md#plugin-yaml-reference).
 
 Both mechanisms may be used in parallel, for example `plugin.env` for the source
@@ -59,7 +59,7 @@ the precedence described below applies.
 
 ### plugin.name
 
-If multiple CMPs are installed, you can select the plugin explicitly. The bundled
+If multiple CMPs are installed, you can select the plugin explicitly. The provided
 `plugin.yaml` sets `metadata.name: argo-values` and `spec.version: v1.0`, so its
 effective name is `argo-values-v1.0`:
 

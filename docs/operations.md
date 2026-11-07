@@ -115,22 +115,18 @@ fails hard.
 | application-controller | `configmaps`, `secrets` | `get`, `list`, `watch` |
 | application-controller | `applications.argoproj.io` | `get`, `list`, `watch`, `patch` |
 
-- `rbac.create` only takes effect together with `withArgoCD=true` and an existing
-  Argo CD subchart.
-- With `withArgoCD=false`, you must create the RBAC resources manually.
+Create the RBAC resources manually according to
+[Getting Started – RBAC](getting-started.md#rbac). Service account names depend on
+your Argo CD installation.
+
 - The repo-server ClusterRole grants cluster-wide `get` on ConfigMaps and Secrets.
   This is necessary for references in arbitrary namespaces, but it violates the
   principle of least privilege. Restrict the permissions if your setup allows it.
-
-Manual RBAC examples are in
-[Getting Started – RBAC](getting-started.md#rbac).
 
 ## Compatibility and Upgrade
 
 - The `copy-cmp-server` image in the repo-server init container must match the
   Argo CD / repo-server version in use. Use the same image tag as the repo-server.
-- Make sure `Chart.yaml`, `Chart.lock`, and the bundled chart dependency are
-  consistent. The chart includes an Argo CD dependency; the versions must match.
 - The `argo-values` image must include Helm. `generate` uses `--dependency-update`;
   missing dependencies are fetched at runtime. Make sure the repo-server can reach
   the required Helm repositories.
@@ -138,9 +134,9 @@ Manual RBAC examples are in
   `plugin.yaml` and the parameter declaration still match.
 - With multiple CMPs, use unique `metadata.name` values in `plugin.yaml`. Set
   `spec.source.plugin.name` on the Application to
-  `<metadata.name>-<spec.version>` when a version is set (for the bundled manifest,
-  `argo-values-v1.0`); without `spec.version`, use `<metadata.name>`
-  (`argo-values`).
+  `<metadata.name>-<spec.version>` when a version is set (for the provided
+  `plugin.yaml`, `argo-values-v1.0`); without `spec.version`, use
+  `<metadata.name>` (`argo-values`).
 - There are no CRDs, database migrations, or persistent plugin state to consider
   during upgrades.
 
