@@ -128,6 +128,27 @@ repoServer:
       emptyDir: {}
 ```
 
+## RBAC
+
+`argo-values init` runs in the repo-server pod and must be able to read the referenced ConfigMaps and Secrets.
+`argo-values watch` runs in the application-controller pod and additionally needs access to Argo CD Applications.
+
+Required permissions:
+
+| Service account | Resources | Verbs |
+| --- | --- | --- |
+| repo-server | `configmaps`, `secrets` | `get` |
+| application-controller | `configmaps`, `secrets` | `get`, `list`, `watch` |
+| application-controller | `applications.argoproj.io` | `get`, `list`, `watch`, `patch` |
+
+With `withArgoCD: true` the chart creates the required ClusterRoles and ClusterRoleBindings automatically.
+Set `rbac.create: false` to disable this, for example when you manage RBAC yourself. When you integrate the
+plugin manually into an existing Argo CD installation (`withArgoCD: false`), you have to create these permissions yourself.
+
+> **Security note:** The ClusterRole for the repo-server service account grants cluster-wide `get` on ConfigMaps and
+> Secrets. `argo-values init` needs this to read referenced objects from arbitrary namespaces. If your setup allows it,
+> restrict these permissions (for example to specific namespaces) to follow the principle of least privilege.
+
 ## Examples
 
 ### Add additional values.yaml from ConfigMap to Helm chart

@@ -1,0 +1,70 @@
+{{- if and .Values.withArgoCD .Values.rbac.create }}
+{{- $fullname := include "argo-values.fullname" . -}}
+{{- $argoCD := index .Subcharts "argo-cd" -}}
+{{- if $argoCD }}
+{{- $renderName := printf "%s-render" $fullname | trunc 63 | trimSuffix "-" -}}
+{{- $watchName := printf "%s-watch" $fullname | trunc 63 | trimSuffix "-" -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $renderName }}
+  labels:
+    app.kubernetes.io/name: argo-values
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: repo-server
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $renderName }}
+  labels:
+    app.kubernetes.io/name: argo-values
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: repo-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $renderName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "argo-cd.repoServer.serviceAccountName" $argoCD }}
+    namespace: {{ include "argo-cd.namespace" $argoCD }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $watchName }}
+  labels:
+    app.kubernetes.io/name: argo-values
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: application-controller
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $watchName }}
+  labels:
+    app.kubernetes.io/name: argo-values
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: application-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $watchName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "argo-cd.controller.serviceAccountName" $argoCD }}
+    namespace: {{ include "argo-cd.namespace" $argoCD }}
+{{- end }}
+{{- end }}

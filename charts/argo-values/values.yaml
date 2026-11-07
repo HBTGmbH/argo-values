@@ -47,3 +47,6 @@ argo-cd:
 withArgoCD: true
 
 withHelmExample: false
+
+rbac:
+  create: true

@@ -6,6 +6,18 @@ ArgoCD CMP plugin has been configured and is ready for use with ArgoCD repo-serv
 Release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
 
+{{ if and .Values.withArgoCD .Values.rbac.create }}
+RBAC for argo-values has been created automatically:
+  - repo-server service account: get on configmaps and secrets
+  - application-controller service account: get/list/watch on configmaps and secrets,
+    get/list/watch/patch on applications
+{{- else }}
+RBAC has to be configured manually because {{ if not .Values.withArgoCD }}withArgoCD is false{{ else }}rbac.create is false{{ end }}:
+  - repo-server service account: get on configmaps and secrets
+  - application-controller service account: get/list/watch on configmaps and secrets,
+    get/list/watch/patch on applications
+{{- end }}
+
 {{ if not .Values.withArgoCD }}
 To add the argo-values plugin to ArgoCD repo-server, just put the following snippet to
 the ArgoCD Helm chart:

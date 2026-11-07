@@ -12,6 +12,6 @@
 # Windows
 Thumbs.db
 
-# Ignore temporary helm files
-charts
-Chart.lock
+# Ignore generated helm artifacts
+charts/*/charts/
+charts/*/Chart.lock
