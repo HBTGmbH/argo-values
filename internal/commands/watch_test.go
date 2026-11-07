@@ -176,7 +176,7 @@ func TestGetKeysFromObjsDoesNotMutateInput(t *testing.T) {
 	}
 }
 
-func TestGetApplicationResourcesUsesApplicationNamespace(t *testing.T) {
+func TestGetApplicationResourcesUsesDestinationNamespace(t *testing.T) {
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"kind": "Application",
@@ -185,6 +185,9 @@ func TestGetApplicationResourcesUsesApplicationNamespace(t *testing.T) {
 				"namespace": "argocd",
 			},
 			"spec": map[string]interface{}{
+				"destination": map[string]interface{}{
+					"namespace": "default",
+				},
 				"source": map[string]interface{}{
 					"plugin": map[string]interface{}{
 						"env": []interface{}{
@@ -197,13 +200,13 @@ func TestGetApplicationResourcesUsesApplicationNamespace(t *testing.T) {
 	}
 
 	got := getApplicationResources(obj)
-	want := []string{"configmaps/argocd/cm"}
+	want := []string{"configmaps/default/cm"}
 	if len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("expected %v, got %v", want, got)
 	}
 }
 
-func TestGetApplicationResourcesWithoutNamespaceUsesDefault(t *testing.T) {
+func TestGetApplicationResourcesWithoutDestinationNamespaceUsesDefault(t *testing.T) {
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"kind": "Application",
@@ -226,6 +229,185 @@ func TestGetApplicationResourcesWithoutNamespaceUsesDefault(t *testing.T) {
 	want := []string{"configmaps/default/cm"}
 	if len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func TestGetApplicationResourcesSupportsMultipleSources(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind": "Application",
+			"metadata": map[string]interface{}{
+				"name":      "app",
+				"namespace": "argocd",
+			},
+			"spec": map[string]interface{}{
+				"destination": map[string]interface{}{
+					"namespace": "workloads",
+				},
+				"sources": []interface{}{
+					map[string]interface{}{
+						"plugin": map[string]interface{}{
+							"env": []interface{}{
+								map[string]interface{}{"name": "value-configs", "value": "values"},
+							},
+						},
+					},
+					map[string]interface{}{
+						"plugin": map[string]interface{}{
+							"env": []interface{}{
+								map[string]interface{}{"name": "env-secrets", "value": "settings"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := getApplicationResources(obj)
+	want := []string{"configmaps/workloads/values", "secrets/workloads/settings"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestGetApplicationResourcesSupportsSourceAndSources(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind": "Application",
+			"metadata": map[string]interface{}{
+				"name":      "app",
+				"namespace": "argocd",
+			},
+			"spec": map[string]interface{}{
+				"destination": map[string]interface{}{
+					"namespace": "workloads",
+				},
+				"source": map[string]interface{}{
+					"plugin": map[string]interface{}{
+						"env": []interface{}{
+							map[string]interface{}{"name": "value-configs", "value": "single"},
+						},
+					},
+				},
+				"sources": []interface{}{
+					map[string]interface{}{
+						"plugin": map[string]interface{}{
+							"env": []interface{}{
+								map[string]interface{}{"name": "env-secrets", "value": "multi"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := getApplicationResources(obj)
+	want := []string{"configmaps/workloads/single", "secrets/workloads/multi"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestGetApplicationResourcesMultiSourceWithParameters(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind": "Application",
+			"metadata": map[string]interface{}{
+				"name":      "app",
+				"namespace": "argocd",
+			},
+			"spec": map[string]interface{}{
+				"destination": map[string]interface{}{
+					"namespace": "workloads",
+				},
+				"sources": []interface{}{
+					map[string]interface{}{
+						"plugin": map[string]interface{}{
+							"parameters": []interface{}{
+								map[string]interface{}{
+									"name":  "valueConfigs",
+									"array": []interface{}{"cm-param"},
+								},
+							},
+						},
+					},
+					map[string]interface{}{
+						"plugin": map[string]interface{}{
+							"env": []interface{}{
+								map[string]interface{}{"name": "env-secrets", "value": "settings"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := getApplicationResources(obj)
+	want := []string{"configmaps/workloads/cm-param", "secrets/workloads/settings"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestGetApplicationResourcesMultiSourceWithQualifiedName(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind": "Application",
+			"metadata": map[string]interface{}{
+				"name":      "app",
+				"namespace": "argocd",
+			},
+			"spec": map[string]interface{}{
+				"destination": map[string]interface{}{
+					"namespace": "workloads",
+				},
+				"sources": []interface{}{
+					map[string]interface{}{
+						"plugin": map[string]interface{}{
+							"env": []interface{}{
+								map[string]interface{}{"name": "value-configs", "value": "other-ns/cm"},
+							},
+						},
+					},
+					map[string]interface{}{
+						"plugin": map[string]interface{}{
+							"env": []interface{}{
+								map[string]interface{}{"name": "env-secrets", "value": "other-ns/secret"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := getApplicationResources(obj)
+	want := []string{"configmaps/other-ns/cm", "secrets/other-ns/secret"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
 	}
 }
 
@@ -277,5 +459,28 @@ func TestUpdateResourcesApplicationEventUpdatesResourceMap(t *testing.T) {
 	}
 	if len(calls) != 0 {
 		t.Fatalf("expected no refresh calls for application event, got %v", calls)
+	}
+}
+
+func TestUpdateResourcesSkipsNewApplicationInSameBatch(t *testing.T) {
+	applicationResources := map[string][]string{
+		"applications/argocd/known": {"configmaps/default/cm"},
+	}
+
+	var calls []refreshCall
+	handler := updateResources(false, fakeRefresh(&calls), applicationResources)
+	handler(map[string]kubernetes.Event{
+		// A new Application referencing the same ConfigMap arrives in the same batch
+		// as the ConfigMap change. It must not be refreshed during initial seeding.
+		"applications/argocd/new": applicationEvent(
+			map[string]interface{}{"name": "values-configs", "value": "cm"},
+		),
+		"configmaps/default/cm": resourceEvent("ConfigMap", "cm"),
+	})
+
+	got := refreshedApps(calls)
+	want := []string{"argocd/known"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("expected only already known application %v to be refreshed, got %v", want, got)
 	}
 }

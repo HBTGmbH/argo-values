@@ -83,39 +83,60 @@ without requiring manual intervention or waiting for the next reconciliation cyc
 
 type refreshApplicationFunc func(name, namespace string) error
 
+// updateResources returns an event handler that keeps the in-memory mapping of
+// Applications to the ConfigMaps/Secrets they reference up to date and refreshes
+// the Applications affected by changed resources.
+//
+// applicationResources is keyed by "applications/<namespace>/<name>" and holds the
+// resource keys ("configmaps/<namespace>/<name>" or "secrets/<namespace>/<name>")
+// referenced by that Application.
 func updateResources(dryRun bool, refresh refreshApplicationFunc, applicationResources map[string][]string) kubernetes.EventHandler {
 	return func(events map[string]kubernetes.Event) {
 		logger.Debugf("Found %d changed resources", len(events))
 
-		var otherResources []string
-		existingApplications := make(map[string]bool)
+		// applicationsInBatch records which Applications had an event in this batch.
+		// Key presence means "this Application was seen in the current batch"; the
+		// value means "this Application was already known before the batch".
+		//
+		// The first loop updates the Application -> referenced ConfigMaps/Secrets
+		// mapping and collects the changed ConfigMaps/Secrets (everything that is
+		// not an Application event).
+		var changedResources []string
+		applicationsInBatch := make(map[string]bool)
 		for key, event := range events {
 			if event.Obj.GetKind() == "Application" {
 				if event.IsDeleted() {
 					delete(applicationResources, key)
 					continue
 				}
-				_, existingApplications[key] = applicationResources[key]
+				_, wasKnown := applicationResources[key]
+				applicationsInBatch[key] = wasKnown
 				applicationResources[key] = getApplicationResources(event.Obj)
 			} else {
-				otherResources = append(otherResources, key)
+				changedResources = append(changedResources, key)
 			}
 		}
 
-		var changedApplications []string
-		for _, changedResource := range otherResources {
-			for application, key := range applicationResources {
-				existing, found := existingApplications[application]
-				if !existing && found {
+		// The second loop deliberately iterates over ALL known Applications, not just
+		// the ones in this batch. This way Applications that did not receive their own
+		// event are still refreshed when one of their ConfigMaps/Secrets changed.
+		var affectedApplications []string
+		for _, changedResource := range changedResources {
+			for application, resources := range applicationResources {
+				wasKnown, inBatch := applicationsInBatch[application]
+				// New Applications seen for the first time in this batch are not
+				// refreshed immediately: initial seeding at startup must not refresh
+				// every Application. Already known Applications are still refreshed.
+				if inBatch && !wasKnown {
 					continue
 				}
-				if !slices.Contains(changedApplications, application) && slices.Contains(key, changedResource) {
-					changedApplications = append(changedApplications, application)
+				if !slices.Contains(affectedApplications, application) && slices.Contains(resources, changedResource) {
+					affectedApplications = append(affectedApplications, application)
 				}
 			}
 		}
 
-		for _, key := range changedApplications {
+		for _, key := range affectedApplications {
 			parts := strings.Split(key, "/")
 			if len(parts) != 3 {
 				logger.Errorf("Invalid application key %s found!", key)
@@ -139,20 +160,32 @@ func updateResources(dryRun bool, refresh refreshApplicationFunc, applicationRes
 func getApplicationResources(obj *unstructured.Unstructured) []string {
 	var resources []string
 
-	defaultNamespace := obj.GetNamespace()
-	if defaultNamespace == "" {
-		defaultNamespace = "default"
-	}
-
 	spec, found, err := unstructured.NestedMap(obj.Object, "spec")
 	if err != nil || !found {
 		return resources
 	}
 
-	source, found, err := unstructured.NestedMap(spec, "source")
-	if err != nil || !found {
-		return resources
+	defaultNamespace := destinationNamespace(spec)
+
+	if source, found, err := unstructured.NestedMap(spec, "source"); err == nil && found {
+		resources = append(resources, getResourcesFromSource(source, defaultNamespace)...)
 	}
+
+	if sources, found, err := unstructured.NestedSlice(spec, "sources"); err == nil && found {
+		for _, source := range sources {
+			sourceMap, ok := source.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			resources = append(resources, getResourcesFromSource(sourceMap, defaultNamespace)...)
+		}
+	}
+
+	return resources
+}
+
+func getResourcesFromSource(source map[string]interface{}, defaultNamespace string) []string {
+	var resources []string
 
 	plugin, found, err := unstructured.NestedMap(source, "plugin")
 	if err != nil || !found {
@@ -170,6 +203,16 @@ func getApplicationResources(obj *unstructured.Unstructured) []string {
 	}
 
 	return resources
+}
+
+// destinationNamespace returns the destination namespace of an Application,
+// falling back to "default" like init does when ARGOCD_APP_NAMESPACE is unset.
+func destinationNamespace(spec map[string]interface{}) string {
+	namespace, found, err := unstructured.NestedString(spec, "destination", "namespace")
+	if err == nil && found && namespace != "" {
+		return namespace
+	}
+	return "default"
 }
 
 func getApplicationResourcesFromParameters(parameters []interface{}, defaultNamespace string) []string {
