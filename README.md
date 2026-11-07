@@ -13,6 +13,37 @@ from Kubernetes ConfigMaps and Secrets.
 - **Helm Integration**: Full compatibility with Helm charts and templating
 - **Selective Processing**: Respect `.helmignore` patterns using Helm-compatible semantics (including path and directory rules)
 
+## TL;DR – CMP in 5 Minutes
+
+1. **Install:** Install the chart with `withArgoCD=true` (the default) or adopt the sidecar snippets for an existing Argo CD installation from [Getting Started](docs/getting-started.md#installation-options). Make sure the `copy-cmp-server` image matches the Argo CD / repo-server version.
+2. **Create value sources:** Create ConfigMap(s) with additional Helm values (`values.yaml`) and/or environment variables; Secrets are an alternative.
+3. **Configure the Application:** In `spec.source.plugin.env`, set the sources as comma-separated strings (`value-configs`, `env-configs`, `value-secrets`, `env-secrets`), or use `plugin.parameters` with `array`/`map`. `plugin.parameters`/`helmValues` require `spec.parameters.static` in `plugin.yaml`.
+4. **Sync:** Argo CD calls `discover` → `init` → `generate` in the repo-server. `init` writes `app-values.yaml` and replaces `${VAR}` in the chart files; `generate` runs `helm template`.
+5. **Optional refresh:** Enable the `watch` sidecar in the application-controller so that changes to referenced ConfigMaps/Secrets trigger a hard refresh.
+
+**Key Pitfalls**
+
+- Unqualified references are resolved against the Application's **destination namespace** (`ARGOCD_APP_NAMESPACE` in `init`, `spec.destination.namespace` in `watch`, fallback `default`) – not against the Application resource namespace. Always use `namespace/name` when in doubt.
+- `plugin.env` uses comma-separated strings; `plugin.parameters` uses arrays/maps. Do not mix them for the same source list. CLI flags are repeatable but do not split commas.
+- `plugin.parameters` and `helmValues` require `spec.parameters.static` in `plugin.yaml`.
+- Never set `LOG_OUTPUT=stdout` in the CMP – it corrupts the discovery token and the Helm manifests.
+- `watch` requires the namespaces of the Applications **and** of all referenced ConfigMaps/Secrets in `ARGOCD_VALUES_NAMESPACES`. Without `watch`, there is no automatic refresh.
+- Missing ConfigMaps/Secrets make `init` fail (exit 1); `discover` does not check their existence.
+
+More details: [Getting Started](docs/getting-started.md), [Configuration](docs/configuration.md), [Operations](docs/operations.md).
+
+## Documentation
+
+The full user documentation lives in [`docs/`](docs/README.md):
+
+- [Getting Started](docs/getting-started.md) – installation, sidecars, RBAC, first Application
+- [How It Works](docs/how-it-works.md) – architecture and lifecycle
+- [Configuration](docs/configuration.md) – sources, precedence, merge, substitution
+- [Operations](docs/operations.md) – watch/refresh, logging, security, troubleshooting
+- [Reference](docs/reference.md) – CLI, env vars, exit codes, `plugin.yaml`
+- [Examples](docs/examples.md) – ConfigMaps, Secrets, `helmValues`, ApplicationSet
+- [Comparison](docs/comparison.md) – Flux, native Argo CD options, and related plugins
+
 ## CLI
 
 `argo-values` provides the subcommands `init`, `generate`, `discover`, and `watch`.
@@ -117,12 +148,13 @@ manifests from `generate`. Set `LOG_OUTPUT=stdout` only if you explicitly want l
 
 ### Add argo-values to ArgoCD repo server
 
-To run argo-values as sidecar with the repo server, add the following snippet to your `values.yaml`:
+To run argo-values as sidecar with the repo server, add the following snippet to your `values.yaml`.
+Make sure the `copy-cmp-server` image matches your Argo CD / repo-server version:
 ```yaml
 repoServer:
   initContainers:
     - name: copy-cmp-server
-      image: quay.io/argoproj/argocd:v3.3.2
+      image: "quay.io/argoproj/argocd:<same-tag-as-your-repo-server>"
       command: [cp, /usr/local/bin/argocd-cmp-server, /custom-tools/]
       volumeMounts:
         - name: custom-tools
@@ -181,8 +213,9 @@ plugin manually into an existing Argo CD installation (`withArgoCD: false`), you
 ## Examples
 
 ConfigMap and Secret references are written either as `name` or as `namespace/name`. Unqualified
-names are resolved in the default namespace. Empty parts (for example `/name` or `namespace/`) and
-more than one `/` (for example `a/b/c`) are rejected.
+names are resolved in the destination namespace of the Application (`ARGOCD_APP_NAMESPACE` during
+`init`, fallback `default`; `watch` uses `spec.destination.namespace`). Empty parts (for example
+`/name` or `namespace/`) and more than one `/` (for example `a/b/c`) are rejected.
 
 ### Add additional values.yaml from ConfigMap to Helm chart
 
@@ -205,6 +238,11 @@ spec:
         - name: env-configs
           value: default/application-variables # <- list of ConfigMaps or namespace/ConfigMap separated by ","
 ```
+
+> **Note:** `plugin.parameters` and `helmValues` require the parameters to be declared under
+> `spec.parameters.static` in `plugin.yaml`. The chart's ConfigMap includes this declaration; the
+> minimal snippet above does not. See [docs/reference.md](docs/reference.md#plugin-yaml-reference) for
+> the full reference.
 
 Every ConfigMap from `value-configs` or Secret from `value-secrets` will be added directly to the Helm templates of the 
 application:
