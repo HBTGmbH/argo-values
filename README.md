@@ -84,7 +84,13 @@ controller:
           value: "3"
         - name: ARGOCD_VALUES_NAMESPACES
           value: "argocd,default"
+        - name: LOG_OUTPUT
+          value: "stderr"
 ```
+
+Logs are written to stderr by default (`LOG_OUTPUT=stderr`). Stdout is reserved for the
+actual command output, such as the discovery token from `discover` and the rendered Helm
+manifests from `generate`. Set `LOG_OUTPUT=stdout` only if you explicitly want logs on stdout.
 
 ### Add argo-values to ArgoCD repo server
 

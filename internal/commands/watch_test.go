@@ -176,6 +176,56 @@ func TestGetKeysFromObjsDoesNotMutateInput(t *testing.T) {
 	}
 }
 
+func TestGetKeysFromObjsTrimsWhitespaceAndSkipsEmptyNames(t *testing.T) {
+	got := getKeysFromObjs("configmaps", []string{" cm ", "  ", "ns/cm"}, "argocd")
+	want := []string{"configmaps/argocd/cm", "configmaps/ns/cm"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestGetApplicationResourcesFromEnvTrimsWhitespace(t *testing.T) {
+	envs := []interface{}{
+		map[string]interface{}{"name": "value-configs", "value": "cm1, cm2"},
+	}
+
+	got := getApplicationResourcesFromEnv(envs, "default")
+	want := []string{"configmaps/default/cm1", "configmaps/default/cm2"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestGetApplicationResourcesFromParametersTrimsWhitespace(t *testing.T) {
+	parameters := []interface{}{
+		map[string]interface{}{
+			"name":  "valueConfigs",
+			"array": []interface{}{" cm1 ", "cm2"},
+		},
+	}
+
+	got := getApplicationResourcesFromParameters(parameters, "default")
+	want := []string{"configmaps/default/cm1", "configmaps/default/cm2"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
 func TestGetApplicationResourcesUsesDestinationNamespace(t *testing.T) {
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{

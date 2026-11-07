@@ -6,7 +6,6 @@ import (
 	"argo-values/internal/logger"
 	"argo-values/internal/utils"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -59,7 +58,7 @@ without requiring manual intervention or waiting for the next reconciliation cyc
 			updateResources(config.DryRun, kubeClient.RefreshApplication, make(map[string][]string)),
 		)
 		if err != nil {
-			log.Fatalf("Failed to create watcher: %v", err)
+			logger.Fatalf("Failed to create watcher: %v", err)
 		}
 
 		// Handle interrupt signal for graceful shutdown
@@ -224,7 +223,7 @@ func getApplicationResourcesFromParameters(parameters []interface{}, defaultName
 			if kind == "" {
 				continue
 			}
-			resources = append(resources, getKeysFromObjs(kind, utils.NonEmpty(utils.GetArrayFromMap(paramMap, "array")), defaultNamespace)...)
+			resources = append(resources, getKeysFromObjs(kind, utils.Trimmed(utils.GetArrayFromMap(paramMap, "array")), defaultNamespace)...)
 		}
 	}
 
@@ -240,7 +239,7 @@ func getApplicationResourcesFromEnv(envs []interface{}, defaultNamespace string)
 			if kind == "" {
 				continue
 			}
-			resources = append(resources, getKeysFromObjs(kind, utils.NonEmpty(strings.Split(utils.GetStringFromMap(envMap, "value"), ",")), defaultNamespace)...)
+			resources = append(resources, getKeysFromObjs(kind, utils.Trimmed(strings.Split(utils.GetStringFromMap(envMap, "value"), ",")), defaultNamespace)...)
 		}
 	}
 
@@ -266,6 +265,10 @@ func getKeysFromObjs(kind string, names []string, defaultNamespace string) []str
 
 	keys := make([]string, 0, len(names))
 	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
 		if strings.Index(name, "/") > 0 {
 			keys = append(keys, fmt.Sprintf("%s/%s", kind, name))
 		} else {

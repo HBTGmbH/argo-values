@@ -30,7 +30,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&config.LogFormat, "log-format",
 		env.GetString("LOG_FORMAT", "json"), "Log format (text, json)")
 	RootCmd.PersistentFlags().StringVar(&config.LogOutput, "log-output",
-		env.GetString("LOG_OUTPUT", "stdout"), "Log output (stderr, stdout)")
+		env.GetString("LOG_OUTPUT", "stderr"), "Log output (stderr, stdout)")
 
 	RootCmd.PersistentFlags().StringVarP(&config.KubeConfigPath, "kubeconfig", "k",
 		"", "Path to kubeconfig file")

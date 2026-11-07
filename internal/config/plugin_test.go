@@ -71,6 +71,58 @@ func TestHasEnvParameters(t *testing.T) {
 	}
 }
 
+func TestGetArrayFromEnvTrimsWhitespace(t *testing.T) {
+	t.Setenv("ARGO_VALUES_TEST_ARRAY", "a, b ,, c ")
+
+	got := GetArrayFromEnv("ARGO_VALUES_TEST_ARRAY", []string{"default"})
+	want := []string{"a", "b", "c"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestGetArrayFromEnvFallsBackToDefaultWhenEmpty(t *testing.T) {
+	t.Setenv("ARGO_VALUES_TEST_ARRAY_EMPTY", " , ,, ")
+
+	got := GetArrayFromEnv("ARGO_VALUES_TEST_ARRAY_EMPTY", []string{"default"})
+	want := []string{"default"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func TestGetArrayTrimsWhitespace(t *testing.T) {
+	params := PluginParameters{
+		{Name: "valueConfigs", Array: []string{" a ", "", " b "}},
+	}
+
+	got := params.GetArray("valueConfigs", []string{"default"})
+	want := []string{"a", "b"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestGetArrayFallsBackToDefaultWhenMissing(t *testing.T) {
+	params := PluginParameters{}
+
+	got := params.GetArray("valueConfigs", []string{"default"})
+	want := []string{"default"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
 func TestGetStringFromEnv(t *testing.T) {
 	t.Run("present", func(t *testing.T) {
 		t.Setenv("ARGO_VALUES_TEST_GET", "value")

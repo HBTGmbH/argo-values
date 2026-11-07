@@ -12,7 +12,7 @@ import (
 var Log = logrus.New()
 
 func init() {
-	Init("debug", "json", "stdout")
+	Init("debug", "json", "stderr")
 }
 
 // Init initializes the global logger

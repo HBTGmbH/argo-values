@@ -87,8 +87,7 @@ func GetSecondsFromEnv(name string, def time.Duration) time.Duration {
 }
 
 func GetArrayFromEnv(name string, def []string) []string {
-	arrayFromEnv := strings.Split(GetStringFromEnv(name, ""), ",")
-	arrayFiltered := utils.NonEmpty(arrayFromEnv)
+	arrayFiltered := utils.Trimmed(strings.Split(GetStringFromEnv(name, ""), ","))
 	if len(arrayFiltered) == 0 {
 		return def
 	}
@@ -109,7 +108,7 @@ func (p PluginParameters) HasArray(name string) bool {
 func (p PluginParameters) GetArray(name string, def []string) []string {
 	for _, param := range p {
 		if param.Name == name {
-			return param.Array
+			return utils.Trimmed(param.Array)
 		}
 	}
 	return def
