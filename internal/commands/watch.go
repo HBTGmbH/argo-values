@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -16,6 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/strings/slices"
 )
+
+// refreshConcurrency limits how many application refreshes run in parallel.
+const refreshConcurrency = 5
 
 var (
 	debounceDuration time.Duration
@@ -135,6 +139,8 @@ func updateResources(dryRun bool, refresh refreshApplicationFunc, applicationRes
 			}
 		}
 
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, refreshConcurrency)
 		for _, key := range affectedApplications {
 			parts := strings.Split(key, "/")
 			if len(parts) != 3 {
@@ -146,13 +152,21 @@ func updateResources(dryRun bool, refresh refreshApplicationFunc, applicationRes
 			name := parts[2]
 			logger.Debugf("Refresh application %s in namespace %s", name, namespace)
 
-			if !dryRun {
-				err := refresh(name, namespace)
-				if err != nil {
+			if dryRun {
+				continue
+			}
+
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(name, namespace string) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				if err := refresh(name, namespace); err != nil {
 					logger.Errorf("Failed to refresh application %s in namespace %s: %v", name, namespace, err)
 				}
-			}
+			}(name, namespace)
 		}
+		wg.Wait()
 	}
 }
 

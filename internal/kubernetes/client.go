@@ -3,10 +3,14 @@ package kubernetes
 import (
 	"argo-values/internal/logger"
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"strings"
+	"time"
 
 	"k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -14,6 +18,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+)
+
+const (
+	refreshTimeout     = 10 * time.Second
+	refreshAttempts    = 3
+	refreshBaseBackoff = 100 * time.Millisecond
+	refreshMaxBackoff  = time.Second
 )
 
 // Client wraps Kubernetes client functionality
@@ -68,15 +79,70 @@ func (k *Client) RefreshApplication(name, namespace string) error {
 
 	patchData := []byte(`{"metadata": {"annotations": {"argocd.argoproj.io/refresh": "hard"}}}`)
 
-	_, err := k.client.Resource(appResource).Namespace(namespace).Patch(
-		context.TODO(),
-		name,
-		types.MergePatchType,
-		patchData,
-		metav1.PatchOptions{},
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)
+	defer cancel()
 
-	return err
+	var lastErr error
+	for attempt := 0; attempt < refreshAttempts; attempt++ {
+		_, err := k.client.Resource(appResource).Namespace(namespace).Patch(
+			ctx,
+			name,
+			types.MergePatchType,
+			patchData,
+			metav1.PatchOptions{},
+		)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !isRetryableRefreshError(err) {
+			return err
+		}
+		if attempt == refreshAttempts-1 {
+			break
+		}
+		delay := refreshBaseBackoff << attempt
+		if delay > refreshMaxBackoff {
+			delay = refreshMaxBackoff
+		}
+		logger.Debugf("Retrying refresh for application %s/%s after %v (attempt %d/%d)", namespace, name, err, attempt+1, refreshAttempts)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+	return lastErr
+}
+
+// isRetryableRefreshError reports whether a failed refresh patch is worth
+// retrying. Client errors (bad request, not found, auth issues) are permanent;
+// transient server, throttling, conflict and network/timeout errors are retried.
+func isRetryableRefreshError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	switch {
+	case apierrors.IsNotFound(err),
+		apierrors.IsForbidden(err),
+		apierrors.IsUnauthorized(err),
+		apierrors.IsBadRequest(err),
+		apierrors.IsInvalid(err):
+		return false
+	}
+	return apierrors.IsTooManyRequests(err) ||
+		apierrors.IsServerTimeout(err) ||
+		apierrors.IsServiceUnavailable(err) ||
+		apierrors.IsInternalError(err) ||
+		apierrors.IsTimeout(err) ||
+		apierrors.IsConflict(err)
 }
 
 // parseNamespacedName splits a "namespace/name" reference. Unqualified names

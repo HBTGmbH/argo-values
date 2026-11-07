@@ -2,6 +2,7 @@ package commands
 
 import (
 	"sort"
+	"sync"
 	"testing"
 
 	"argo-values/internal/kubernetes"
@@ -34,7 +35,10 @@ type refreshCall struct {
 }
 
 func fakeRefresh(calls *[]refreshCall) refreshApplicationFunc {
+	var mu sync.Mutex
 	return func(name, namespace string) error {
+		mu.Lock()
+		defer mu.Unlock()
 		*calls = append(*calls, refreshCall{name: name, namespace: namespace})
 		return nil
 	}
