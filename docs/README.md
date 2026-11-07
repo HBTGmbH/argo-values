@@ -128,6 +128,7 @@ triggers a hard refresh for affected Applications. Details:
 | Page | Contents |
 | --- | --- |
 | [Getting Started](getting-started.md) | Prerequisites, installation, full `plugin.yaml`, sidecars, RBAC, verification, first Application |
+| [Local Testing](local-testing.md) | Step-by-step trial on a local MicroK8s cluster: Argo CD, `argo-values`, example Application, refresh, cleanup |
 | [How It Works](how-it-works.md) | Architecture, `discover`/`init`/`generate` lifecycle, value resolution, `watch`, discovery decision |
 | [Configuration](configuration.md) | Application configuration, value sources, reference formats, precedence, merge, env substitution, files/paths, limitations |
 | [Operations](operations.md) | `watch`/refresh, logging, security, RBAC, compatibility/upgrade, [Troubleshooting](operations.md#troubleshooting) |

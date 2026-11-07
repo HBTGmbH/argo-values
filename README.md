@@ -37,6 +37,7 @@ More details: [Getting Started](docs/getting-started.md), [Configuration](docs/c
 The full user documentation lives in [`docs/`](docs/README.md):
 
 - [Getting Started](docs/getting-started.md) – installation, sidecars, RBAC, first Application
+- [Local Testing](docs/local-testing.md) – try it locally with MicroK8s, Argo CD, and an example Application
 - [How It Works](docs/how-it-works.md) – architecture and lifecycle
 - [Configuration](docs/configuration.md) – sources, precedence, merge, substitution
 - [Operations](docs/operations.md) – watch/refresh, logging, security, troubleshooting

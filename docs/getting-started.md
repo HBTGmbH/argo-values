@@ -3,6 +3,9 @@
 This page walks you from installation to your first Application rendered with
 `argo-values`.
 
+> **Just want to try it out?** [Local Testing](local-testing.md) describes a
+> complete walkthrough on a throwaway MicroK8s cluster.
+
 ## Prerequisites
 
 - A running Kubernetes cluster with an existing Argo CD installation.
