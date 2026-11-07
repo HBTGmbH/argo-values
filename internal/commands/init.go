@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -123,40 +124,47 @@ func generateValues(client *kubernetes.Client, appParameters *config.AppParamete
 	}
 
 	// Parse YAML from configmaps and secrets
-	mergedValues, err := mergeData(configMaps, appParameters.Values.ConfigMaps, secrets, appParameters.Values.Secrets)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to init values: %v", err)
-	}
+	mergedValues := mergeData(configMaps, appParameters.Values.ConfigMaps, secrets, appParameters.Values.Secrets)
 
 	helmValues := config.UnflattenYAML(appParameters.Helm.Values, false)
+	helmValues = config.CoerceScalars(helmValues)
 	mergedValues = config.MergeYAML(mergedValues, helmValues)
 
-	mergedEnv, err := mergeData(configMaps, appParameters.Env.ConfigMaps, secrets, appParameters.Env.Secrets)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to init env: %v", err)
-	}
+	mergedEnv := mergeData(configMaps, appParameters.Env.ConfigMaps, secrets, appParameters.Env.Secrets)
 	flattenEnv := map[string]string{}
 	config.FlattenYAML(mergedEnv, "", flattenEnv)
 
 	return mergedValues, flattenEnv, nil
 }
 
-func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, secrets map[string]*v1.Secret, secretNames []string) (map[string]interface{}, error) {
+// sortedKeys returns the keys of m in ascending lexicographic order.
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func mergeData(configMaps map[string]*v1.ConfigMap, configMapNames []string, secrets map[string]*v1.Secret, secretNames []string) map[string]interface{} {
 	var result map[string]interface{}
 
 	for _, name := range configMapNames {
-		for key, value := range configMaps[name].Data {
-			result = config.MergeYAML(result, config.ParseYAML(key, value))
+		data := configMaps[name].Data
+		for _, key := range sortedKeys(data) {
+			result = config.MergeYAML(result, config.ParseYAML(key, data[key]))
 		}
 	}
 
 	for _, name := range secretNames {
-		for key, value := range secrets[name].Data {
-			result = config.MergeYAML(result, config.ParseYAML(key, string(value)))
+		data := secrets[name].Data
+		for _, key := range sortedKeys(data) {
+			result = config.MergeYAML(result, config.ParseYAML(key, string(data[key])))
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 func prepareApplicationFiles(directory string, ignorePatterns *helm.IgnoreFile, env map[string]string, dryRun bool) error {

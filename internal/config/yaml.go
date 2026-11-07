@@ -19,7 +19,67 @@ const maxArrayIndex = 10000
 var (
 	arraySectionPattern = regexp.MustCompile(`^([^\[\]]+)((?:\[\d+\])+)$`)
 	arrayIndexPattern   = regexp.MustCompile(`\[(\d+)\]`)
+	intScalarPattern    = regexp.MustCompile(`^[+-]?(0|[1-9][0-9]*)$`)
+	floatScalarPattern  = regexp.MustCompile(`^[+-]?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$`)
 )
+
+// CoerceScalars recursively converts string leaves that are unambiguous YAML
+// scalars into their typed representation (bool, int64, float64, nil).
+// Empty strings, strings with leading zeros ("0123"), hex/underscore numbers
+// ("0x10", "1_000"), timestamps, quoted strings and non-scalar values
+// (maps/sequences encoded as strings) are kept unchanged.
+func CoerceScalars(data map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{}, len(data))
+	for key, value := range data {
+		result[key] = coerceScalarValue(value)
+	}
+	return result
+}
+
+func coerceScalarValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		return CoerceScalars(v)
+	case []interface{}:
+		list := make([]interface{}, len(v))
+		for i, item := range v {
+			list[i] = coerceScalarValue(item)
+		}
+		return list
+	case string:
+		return coerceScalarString(v)
+	default:
+		return value
+	}
+}
+
+func coerceScalarString(value string) interface{} {
+	if value == "" {
+		return value
+	}
+	if strings.EqualFold(value, "true") {
+		return true
+	}
+	if strings.EqualFold(value, "false") {
+		return false
+	}
+	if strings.EqualFold(value, "null") || value == "~" {
+		return nil
+	}
+	if intScalarPattern.MatchString(value) {
+		if number, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return number
+		}
+		return value
+	}
+	if floatScalarPattern.MatchString(value) {
+		if number, err := strconv.ParseFloat(value, 64); err == nil {
+			return number
+		}
+		return value
+	}
+	return value
+}
 
 // pathStep is a single step in an unflattened path: either a map key or an
 // array index. Exactly one of key/isIndex is meaningful.

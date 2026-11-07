@@ -196,6 +196,96 @@ func TestMergeYAML(t *testing.T) {
 	}
 }
 
+func TestCoerceScalars(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  interface{}
+	}{
+		{name: "bool true lowercase", input: "true", want: true},
+		{name: "bool true uppercase", input: "True", want: true},
+		{name: "bool false lowercase", input: "false", want: false},
+		{name: "bool false uppercase", input: "FALSE", want: false},
+		{name: "null lowercase", input: "null", want: nil},
+		{name: "null uppercase", input: "NULL", want: nil},
+		{name: "null tilde", input: "~", want: nil},
+		{name: "int", input: "3", want: int64(3)},
+		{name: "negative int", input: "-3", want: int64(-3)},
+		{name: "zero", input: "0", want: int64(0)},
+		{name: "explicitly positive int", input: "+3", want: int64(3)},
+		{name: "float", input: "0.5", want: float64(0.5)},
+		{name: "negative float", input: "-0.5", want: float64(-0.5)},
+		{name: "exponent", input: "1e3", want: float64(1e3)},
+		{name: "exponent with fraction", input: "1.5e-3", want: float64(1.5e-3)},
+		{name: "quantity", input: "123m", want: "123m"},
+		{name: "leading zero", input: "0123", want: "0123"},
+		{name: "negative leading zero", input: "-0123", want: "-0123"},
+		{name: "underscore number", input: "1_000", want: "1_000"},
+		{name: "hex number", input: "0x10", want: "0x10"},
+		{name: "timestamp", input: "2024-01-01", want: "2024-01-01"},
+		{name: "comment", input: "#c", want: "#c"},
+		{name: "flow sequence", input: "[1,2]", want: "[1,2]"},
+		{name: "inline map", input: "a: b", want: "a: b"},
+		{name: "empty string", input: "", want: ""},
+		{name: "quoted string", input: "'false'", want: "'false'"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CoerceScalars(map[string]interface{}{"value": tt.input})["value"]
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("CoerceScalars(%q) = %#v (%T), want %#v (%T)", tt.input, got, got, tt.want, tt.want)
+			}
+		})
+	}
+}
+
+func TestCoerceScalarsNested(t *testing.T) {
+	input := map[string]interface{}{
+		"outer": map[string]interface{}{
+			"replicas": "3",
+			"enabled":  "false",
+			"list":     []interface{}{"true", "0.5", "123m", "~"},
+		},
+	}
+	want := map[string]interface{}{
+		"outer": map[string]interface{}{
+			"replicas": int64(3),
+			"enabled":  false,
+			"list":     []interface{}{true, float64(0.5), "123m", nil},
+		},
+	}
+
+	if got := CoerceScalars(input); !reflect.DeepEqual(got, want) {
+		t.Errorf("CoerceScalars() = %#v, want %#v", got, want)
+	}
+}
+
+func TestCoerceScalarsDoesNotMutateInput(t *testing.T) {
+	input := map[string]interface{}{
+		"replicas": "3",
+		"enabled":  "false",
+		"nested": map[string]interface{}{
+			"ratio": "0.5",
+		},
+		"list": []interface{}{"true", "1"},
+	}
+	original := map[string]interface{}{
+		"replicas": "3",
+		"enabled":  "false",
+		"nested": map[string]interface{}{
+			"ratio": "0.5",
+		},
+		"list": []interface{}{"true", "1"},
+	}
+
+	CoerceScalars(input)
+
+	if !reflect.DeepEqual(input, original) {
+		t.Errorf("CoerceScalars() mutated input: got %#v, want %#v", input, original)
+	}
+}
+
 func TestUnflattenSanitizedYAML(t *testing.T) {
 	tests := []struct {
 		name     string

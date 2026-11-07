@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"argo-values/internal/logger"
 
 	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
 )
 
 func writeTestFile(t *testing.T, path, content string) {
@@ -32,6 +34,48 @@ func readTestFile(t *testing.T, path string) string {
 		t.Fatalf("failed to read %s: %v", path, err)
 	}
 	return string(content)
+}
+
+func TestMergeDataIsDeterministic(t *testing.T) {
+	configMaps := map[string]*v1.ConfigMap{
+		"cm": {Data: map[string]string{
+			"a": "key: first",
+			"b": "key: second",
+		}},
+	}
+
+	var first map[string]interface{}
+	for i := 0; i < 100; i++ {
+		result := mergeData(configMaps, []string{"cm"}, nil, nil)
+		if i == 0 {
+			first = result
+		} else if !reflect.DeepEqual(result, first) {
+			t.Fatalf("mergeData() returned a different result on iteration %d: got %#v, want %#v", i, result, first)
+		}
+
+		if key, ok := result["key"]; !ok || key != "second" {
+			t.Fatalf("mergeData()[key] = %#v, want %q (sorted key %q must win)", key, "second", "b")
+		}
+	}
+}
+
+func TestMergeDataSourcePrecedence(t *testing.T) {
+	cm1 := &v1.ConfigMap{Data: map[string]string{"values": "key: first"}}
+	cm2 := &v1.ConfigMap{Data: map[string]string{"values": "key: second"}}
+	secret := &v1.Secret{Data: map[string][]byte{"values": []byte("key: secret")}}
+
+	configMaps := map[string]*v1.ConfigMap{"cm1": cm1, "cm2": cm2}
+	secrets := map[string]*v1.Secret{"secret": secret}
+
+	got := mergeData(configMaps, []string{"cm1", "cm2"}, nil, nil)
+	if got["key"] != "second" {
+		t.Errorf("later ConfigMap must win: key = %#v, want %q", got["key"], "second")
+	}
+
+	got = mergeData(configMaps, []string{"cm1", "cm2"}, secrets, []string{"secret"})
+	if got["key"] != "secret" {
+		t.Errorf("Secret after ConfigMaps must win: key = %#v, want %q", got["key"], "secret")
+	}
 }
 
 func TestPrepareApplicationFilesNestedDirectories(t *testing.T) {
