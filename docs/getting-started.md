@@ -178,7 +178,7 @@ Notes:
 ## Optional watch Sidecar in the application-controller
 
 `watch` is **not a CMP component** and does not run in the repo-server. For
-automatic refresh, add an additional sidecar to the application-controller:
+automatic refresh, add a sidecar to the application-controller:
 
 ```yaml
 controller:

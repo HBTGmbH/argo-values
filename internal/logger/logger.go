@@ -92,6 +92,8 @@ func Warn(args ...any) {
 }
 
 // Error logs at error level
+//
+//goland:noinspection GoUnusedExportedFunction
 func Error(args ...any) {
 	Log.Error(args...)
 }

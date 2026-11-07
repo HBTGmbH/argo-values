@@ -481,7 +481,7 @@ func (r failingWatchResource) Namespace(ns string) dynamic.ResourceInterface {
 
 type failingWatchNamespaced struct{ dynamic.ResourceInterface }
 
-func (r failingWatchNamespaced) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+func (r failingWatchNamespaced) Watch(_ context.Context, _ metav1.ListOptions) (watch.Interface, error) {
 	return nil, fmt.Errorf("simulated watch failure")
 }
 

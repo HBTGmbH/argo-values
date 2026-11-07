@@ -284,10 +284,10 @@ func TestCoerceScalars(t *testing.T) {
 		{name: "negative int", input: "-3", want: int64(-3)},
 		{name: "zero", input: "0", want: int64(0)},
 		{name: "explicitly positive int", input: "+3", want: int64(3)},
-		{name: "float", input: "0.5", want: float64(0.5)},
-		{name: "negative float", input: "-0.5", want: float64(-0.5)},
-		{name: "exponent", input: "1e3", want: float64(1e3)},
-		{name: "exponent with fraction", input: "1.5e-3", want: float64(1.5e-3)},
+		{name: "float", input: "0.5", want: 0.5},
+		{name: "negative float", input: "-0.5", want: -0.5},
+		{name: "exponent", input: "1e3", want: 1e3},
+		{name: "exponent with fraction", input: "1.5e-3", want: 1.5e-3},
 		{name: "quantity", input: "123m", want: "123m"},
 		{name: "leading zero", input: "0123", want: "0123"},
 		{name: "negative leading zero", input: "-0123", want: "-0123"},
@@ -323,7 +323,7 @@ func TestCoerceScalarsNested(t *testing.T) {
 		"outer": map[string]any{
 			"replicas": int64(3),
 			"enabled":  false,
-			"list":     []any{true, float64(0.5), "123m", nil},
+			"list":     []any{true, 0.5, "123m", nil},
 		},
 	}
 

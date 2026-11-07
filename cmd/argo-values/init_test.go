@@ -384,7 +384,7 @@ func TestProcessFileDoesNotLogSecretValue(t *testing.T) {
 	path := filepath.Join(root, "file.txt")
 	writeTestFile(t, path, "${SECRET}")
 
-	// Redirect logger output and restore the global logger state afterwards.
+	// Redirect logger output and restore the global logger state afterward.
 	originalOut := logger.Log.Out
 	originalLevel := logger.Log.GetLevel()
 	originalFormatter := logger.Log.Formatter

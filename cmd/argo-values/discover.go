@@ -28,7 +28,7 @@ command exits with code 0. Otherwise nothing is written to stdout and the comman
 exits with code 2.`
 }
 
-func (c *DiscoverCmd) Run(g *Global) error {
+func (c *DiscoverCmd) Run(_ *Global) error {
 	supported, err := discoverApplication()
 	if err != nil {
 		logger.Fatalf("Failed to parse parameters: %v", err)

@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	"k8s.io/utils/env"
 )
@@ -75,14 +73,6 @@ func GetStringFromEnv(name string, def string) string {
 		}
 	}
 
-	return def
-}
-
-func GetSecondsFromEnv(name string, def time.Duration) time.Duration {
-	secondsFromEnv := GetStringFromEnv(name, "")
-	if seconds, err := strconv.Atoi(secondsFromEnv); err == nil {
-		return time.Duration(seconds) * time.Second
-	}
 	return def
 }
 
